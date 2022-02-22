@@ -1,5 +1,8 @@
 module StencilInterpolation
 
-greet() = print("Hello World!")
+include("Scatter.jl")
+include("utils/Utils.jl")
+
+export scattering, scattering!
 
 end # module
