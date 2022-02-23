@@ -46,7 +46,7 @@ function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, dxi::NTuple{2, 
     px, py = p
     x, y = xi
 
-    if ix < length(px)
+    if ix ≤ length(px)
         # indices of lowermost-left corner of the cell 
         # containing the particle
         idx_x, idx_y = parent_cell((px[ix], py[ix]), dxi)
@@ -55,11 +55,18 @@ function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, dxi::NTuple{2, 
         dy_particle = py[ix] - y[idx_y]
     
         # Interpolate field F onto particle
-        Fp[ix] =
-            F[idx_y,   idx_x  ]*(1-dx_particle/dx)*(1-dy_particle/dy) + 
-            F[idx_y,   idx_x+1]*(dx_particle/dx)*(1-dy_particle/dy) + 
-            F[idx_y+1, idx_x  ]*(1-dx_particle/dx)*(dy_particle/dy) + 
-            F[idx_y+1, idx_x+1]*(dx_particle/dx)*(dy_particle/dy)
+        # Fp[ix] =
+        #     F[idx_x,   idx_y  ]*(1-dx_particle/dx)*(1-dy_particle/dy) + 
+        #     F[idx_x,   idx_y+1]*(dx_particle/dx)*(1-dy_particle/dy) + 
+        #     F[idx_x+1, idx_y  ]*(1-dx_particle/dx)*(dy_particle/dy) + 
+        #     F[idx_x+1, idx_y+1]*(dx_particle/dx)*(dy_particle/dy)
+
+        Fp[ix] = 
+            fma(F[idx_x+1, idx_y+1] * (dx_particle / dx), dy_particle / dy, 
+            fma(F[idx_x+1, idx_y  ] * (1 - dx_particle / dx), dy_particle / dy,
+            fma(F[idx_x,   idx_y+1] * (dx_particle / dx), 1 - dy_particle / dy, 
+                F[idx_x,   idx_y  ] * (1 - dx_particle / dx) * (1 - dy_particle / dy))))
+        
     end
 
     return 
@@ -69,6 +76,6 @@ function scattering!(Fpd, xi, dxi, Fd::CuArray{T, 2}, particle_coords::NTuple{2,
     N = length(particle_coords[1])
     numblocks = ceil(Int, N/256)
     CUDA.@sync begin
-        @cuda threads=256 blocks=20 _scattering!(Fpd, particle_coords, dxi, xi, Fd)
+        @cuda threads=256 blocks=numblocks _scattering!(Fpd, particle_coords, dxi, xi, Fd)
     end
 end
