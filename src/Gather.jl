@@ -1,6 +1,8 @@
 
 distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {T, N} = 1/distance(a, b)^order
 
+## CPU
+
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
     # indices of lowermost-left corner of   
     # the cell containing the particle
@@ -31,16 +33,19 @@ function gathering!(F::Array{T, N}, Fp::Vector{T}, xi, dxi, particle_coords; ord
     px, py = particle_coords
     x, y = xi
 
+    # number of particles
     np = length(Fp)
 
-    # upper = zeros(size(F)) # we can recycle F here
+    # TODO think about pre-allocating these 2 buffers
     upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
     lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
 
+    # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
         _gathering!(upper, lower, Fp[i], (px[i], py[i]), x, y, dxi, order)
     end
-
+    
+    # compute Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
     Threads.@threads for i in eachindex(F)
         @inbounds F[i] = 
             sum(upper[nt][i] for nt in 1:Threads.nthreads()) /
@@ -48,4 +53,72 @@ function gathering!(F::Array{T, N}, Fp::Vector{T}, xi, dxi, particle_coords; ord
     end
 
 end
+
+## CUDA
+
+function _gather1!(upper::CuArray, lower::CuArray, Fpd::CuArray, xi, dxi, p; order = 4)
+    idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    
+    # unpack tuples
+    px, py = p
+    x, y = xi
+
+    @inbounds if idx ≤ length(px)
+        p_idx = (px[idx], py[idx])
+
+        # indices of lowermost-left corner of
+        # the cell containing the particle
+        idx_x, idx_y = parent_cell(p_idx, dxi)
+
+        ω1::Float64 = distance_weigth((x[idx_x],   y[idx_y]),   p_idx, order=order)
+        ω2::Float64 = distance_weigth((x[idx_x+1], y[idx_y]),   p_idx, order=order)
+        ω3::Float64 = distance_weigth((x[idx_x],   y[idx_y+1]), p_idx, order=order)
+        ω4::Float64 = distance_weigth((x[idx_x+1], y[idx_y+1]), p_idx, order=order)
+        
+        Fpi::Float64 = Fpd[idx] # use @shared here?
+
+        CUDA.@atomic upper[idx_x,     idx_y] += ω1*Fpi
+        CUDA.@atomic upper[idx_x+1,   idx_y] += ω2*Fpi
+        CUDA.@atomic upper[idx_x,   idx_y+1] += ω3*Fpi
+        CUDA.@atomic upper[idx_x+1, idx_y+1] += ω4*Fpi
+        CUDA.@atomic lower[idx_x,     idx_y] += ω1
+        CUDA.@atomic lower[idx_x+1,   idx_y] += ω2
+        CUDA.@atomic lower[idx_x,   idx_y+1] += ω3
+        CUDA.@atomic lower[idx_x+1, idx_y+1] += ω4
+    end
+
+    return
+end
+
+function _gather2!(Fd, upper, lower)
+    idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    idy  = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    if (idx < size(Fd, 1)) && (idy < size(Fd, 2))
+        @inbounds Fd[idx, idy] = upper[idx, idy] / lower[idx, idy]
+    end
+
+    return
+end
+    
+function gather!(Fd, Fpd, xi, dxi, particle_coords; nt = 512)
+    # TODO: pre-allocate the following buffers
+    upper = CUDA.zeros(length(xi[1])) 
+    lower = CUDA.zeros(length(xi[2])) 
+
+    # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
+    N = length(Fpd)
+    numblocks = ceil(Int, N/nt)
+    CUDA.@sync begin
+        @cuda threads=nt blocks=numblocks _gather1!(upper, lower, Fpd, xi, dxi, particle_coords)
+    end
+
+    # seond and final kernel that computes Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
+    N = length(Fd)
+    numblocks = ceil(Int, N/nt)
+    CUDA.@sync begin
+        @cuda threads=nt blocks=numblocks _gather2!(Fd, upper, lower)
+    end
+end
+
 
