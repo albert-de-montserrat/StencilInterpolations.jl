@@ -40,24 +40,39 @@ function main(nx, ny, nxcell)
 
     # random field
     F = [-sin(2*yi)*cos(3*π*xi) for xi in x, yi in y]
+    F0 = deepcopy(F)
 
-    # Scattering operation (for now just bi-linear interpolation)
-    t_cpu = @elapsed Fp = scattering( (x, y), (dx, dy), F, particle_coords);
+    ## CPU -----------------------------------------------------------------------------------------
+
+    # scattering operation (for now just bi-linear interpolation)
+    t_scatter_cpu = @elapsed Fp = scattering( (x, y), (dx, dy), F, particle_coords)
+
+    # gathering operation (inverse distance weighting)
+    t_gather_cpu = @elapsed gathering!(F, Fp, (x, y), (dx, dy), particle_coords)
 
     # Compute error
     sol = [-sin(2*yi)*cos(3*π*xi) for (xi, yi) in zip(px,py)]
-    misfit = @.(log10(abs(Fp-sol)))
+    misfit_scatter = @.(log10(abs(Fp-sol)))
+    misfit_gather = @.(log10(abs(F-F0)))
 
-    ## CUDA
+    ## CUDA -----------------------------------------------------------------------------------------
 
     Fpd = CUDA.zeros(Float64, N)
     Fd = CuArray(F)
+    Fd0 = deepcopy(Fd)
 
-    t_gpu = @elapsed scattering!(Fpd, (x, y), (dx, dy), Fd, CuArray.(particle_coords))
+    # scattering operation (for now just bi-linear interpolation)
+    t_scatter_cuda = @elapsed scattering!(Fpd, (x, y), (dx, dy), Fd, CuArray.(particle_coords))
 
+    # gathering operation (inverse distance weighting)
+    particle_coords_dev = CuArray.(particle_coords)
+    fill!(Fd, 0.0)
+    t_gather_cuda = @elapsed gathering!(Fd, Fpd, (x, y), (dx, dy), particle_coords_dev)
+       
     # Compute error
     sol_gpu = CuArray(sol)
-    misfit_gpu = @.(log10(abs(Fpd-sol_gpu)))
+    misfit_scatter_cuda = @.(log10(abs(Fpd-sol_gpu)))
+    misfit_gather_cuda = @.(log10(abs(Fd-Fd0)))
 
     println("Finished for Ω ∈ [0,1] × [0,1]; $(nx) × $(nx) nodes; $nxcell particles per cell or $(Float64(N)) particles")
 
@@ -75,7 +90,7 @@ function main(nx, ny, nxcell)
         ylims!(0, ly)
 
         a = Axis(f[1, 3], aspect=1, title="log10 error")
-        s = scatter!(a, px, py, color=misfit, colormap=:batlow)
+        s = scatter!(a, px, py, color=misfit_scatter, colormap=:batlow)
         xlims!(0, lx)
         ylims!(0, ly)
         Colorbar(f[1,4], s)
@@ -94,23 +109,23 @@ function main(nx, ny, nxcell)
         ylims!(0, ly)
 
         a = Axis(f[1, 3], aspect=1, title="log10 error")
-        s = scatter!(a, px, py, color=Array(misfit_gpu), colormap=:batlow)
+        s = scatter!(a, px, py, color=Array(misfit_scatter_cuda), colormap=:batlow)
         xlims!(0, lx)
         ylims!(0, ly)
         Colorbar(f[1,4], s)
         display(f)
     end
-    # return t_cpu, t_gpu, norm(Fp.-sol, 2)*dx*dy, norm(Fpd.-sol_gpu, 2)*dx*dy
-    return t_cpu, t_gpu, mean(Fp.-sol), mean(Fpd.-sol_gpu)
+    # return t_scatter_cpu, t_scatter_cuda, norm(Fp.-sol, 2)*dx*dy, norm(Fpd.-sol_gpu, 2)*dx*dy
+    return t_scatter_cpu, t_scatter_cuda, mean(Fp.-sol), mean(Fpd.-sol_gpu)
 end
 
 function perf_test()
     
-    df = DataFrame(threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[], t_cpu=Float64[], t_cuda=Float64[], error_cpu=Float64[], error_cuda=Float64[])
+    df = DataFrame(threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[], t_scatter_cpu=Float64[], t_scatter_cuda=Float64[], error_cpu=Float64[], error_cuda=Float64[])
     nx = ny = 1000 # 501
     for nxcell in (4, 12, 16, 24, 32, 50)
-        t_cpu, t_gpu, misfit, misfit_gpu = main(nx, ny, nxcell)
-        push!(df, [Threads.nthreads() nx ny nxcell t_cpu t_gpu misfit misfit_gpu])
+        t_scatter_cpu, t_scatter_cuda, misfit_scatter, misfit_scatter_cuda = main(nx, ny, nxcell)
+        push!(df, [Threads.nthreads() nx ny nxcell t_scatter_cpu t_scatter_cuda misfit_scatter misfit_scatter_cuda])
     end
 
     CSV.write("scatter_perf_$(Threads.nthreads())_fma_nxcell.csv", df)

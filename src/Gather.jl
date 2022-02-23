@@ -56,7 +56,7 @@ end
 
 ## CUDA
 
-function _gather1!(upper::CuArray, lower::CuArray, Fpd::CuArray, xi, dxi, p; order = 4)
+function _gather1!(upper::CuDeviceMatrix{T, 1}, lower::CuDeviceMatrix{T, 1}, Fpd::CuDeviceVector{T, 1}, xi, dxi, p; order = 4) where T
     idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     
     # unpack tuples
@@ -101,10 +101,11 @@ function _gather2!(Fd, upper, lower)
     return
 end
     
-function gather!(Fd, Fpd, xi, dxi, particle_coords; nt = 512)
+function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
     # TODO: pre-allocate the following buffers
-    upper = CUDA.zeros(length(xi[1])) 
-    lower = CUDA.zeros(length(xi[2])) 
+    upper = CUDA.zeros(T, size(Fd)) # we can recycle F here as buffer
+    # fill!(Fd, zero(T))
+    lower = CUDA.zeros(T, size(Fd)) 
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
     N = length(Fpd)
