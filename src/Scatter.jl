@@ -56,9 +56,9 @@ function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, dxi::NTuple{2, 
     
         # Interpolate field F onto particle
         Fp[ix] = 
-            fma(F[idx_x+1, idx_y+1] * (dx_particle / dx), dy_particle / dy, 
-            fma(F[idx_x+1, idx_y  ] * (1 - dx_particle / dx), dy_particle / dy,
-            fma(F[idx_x,   idx_y+1] * (dx_particle / dx), 1 - dy_particle / dy, 
+            muladd(F[idx_x+1, idx_y+1] * (dx_particle / dx), dy_particle / dy, 
+            muladd(F[idx_x+1, idx_y  ] * (1 - dx_particle / dx), dy_particle / dy,
+            muladd(F[idx_x,   idx_y+1] * (dx_particle / dx), 1 - dy_particle / dy, 
                 F[idx_x,   idx_y  ] * (1 - dx_particle / dx) * (1 - dy_particle / dy))))
         
     end
@@ -66,7 +66,7 @@ function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, dxi::NTuple{2, 
     return 
 end
 
-function scattering!(Fpd, xi, dxi, Fd::CuArray{T, 2}, particle_coords::NTuple{2, CuArray}; nt = 512) where {T}
+function scattering!(Fpd, xi, dxi, Fd::CuArray{T, 2}, particle_coords::NTuple{2, CuArray}; nt =512) where {T}
     N = length(particle_coords[1])
     numblocks = ceil(Int, N/nt)
     CUDA.@sync begin

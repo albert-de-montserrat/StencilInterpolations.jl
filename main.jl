@@ -1,9 +1,10 @@
-import Pkg; Pkg.activate(".")
-using Statistics
-using StencilInterpolation
-using CUDA
 using CSV
 using DataFrames
+using Statistics
+using CUDA
+
+import Pkg; Pkg.activate(".")
+using StencilInterpolation
 
 const viz = false
 
@@ -23,9 +24,6 @@ function random_particles(nxcell, x, y, dx, dy, nx, ny)
 end
 
 function main(nx, ny, nxcell)
-
-    # println("Ω ∈ [0,1] × [0,1]; $(nx) × $(nx) nodes; $N particles")
-    # println("Ω ∈ [0,1] × [0,1]; $(nx) × $(nx) nodes; $nxcell particles per cell")
 
     # model domain
     lx = ly = 1
@@ -49,19 +47,17 @@ function main(nx, ny, nxcell)
     # Compute error
     sol = [-sin(2*yi)*cos(3*π*xi) for (xi, yi) in zip(px,py)]
     misfit = @.(log10(abs(Fp-sol)))
-    # println("average log10 error = $(mean(misfit))")
 
     ## CUDA
 
     Fpd = CUDA.zeros(Float64, N)
     Fd = CuArray(F)
 
-    t_gpu = @elapsed scattering!(Fpd, (x, y), (dx, dy), Fd, CuArray.(particle_coords));
+    t_gpu = @elapsed scattering!(Fpd, (x, y), (dx, dy), Fd, CuArray.(particle_coords))
 
     # Compute error
     sol_gpu = CuArray(sol)
     misfit_gpu = @.(log10(abs(Fpd-sol_gpu)))
-    # println("average log10 error = $(mean(misfit))")
 
     println("Finished for Ω ∈ [0,1] × [0,1]; $(nx) × $(nx) nodes; $nxcell particles per cell or $(Float64(N)) particles")
 
