@@ -115,10 +115,11 @@ function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coo
     end
 
     # seond and final kernel that computes Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
-    N = length(Fd)
-    numblocks = ceil(Int, N/nt)
+    nx, ny = size(Fd)
+    nblocksx = ceil(Int, nx/32)
+    nblocksy = ceil(Int, ny/32)
     CUDA.@sync begin
-        @cuda threads=nt blocks=numblocks _gather2!(Fd, upper, lower)
+        @cuda threads=(32,32) blocks=(nblocksx,nblocksy) _gather2!(Fd, upper, lower)
     end
 end
 
