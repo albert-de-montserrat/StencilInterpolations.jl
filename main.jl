@@ -116,13 +116,16 @@ function main(nx, ny, nxcell)
         display(f)
     end
     # return t_scatter_cpu, t_scatter_cuda, norm(Fp.-sol, 2)*dx*dy, norm(Fpd.-sol_gpu, 2)*dx*dy
-    return t_scatter_cpu, t_scatter_cuda, mean(Fp.-sol), mean(Fpd.-sol_gpu)
+    return t_scatter_cpu, t_scatter_cuda, t_gather_cpu, t_gather_cuda, mean(Fp.-sol), mean(Fpd.-sol_gpu), mean(F.-F0), mean(Fd.-Fd0)
 end
 
 function perf_test()
     
-    df = DataFrame(threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[], t_scatter_cpu=Float64[], t_scatter_cuda=Float64[], error_cpu=Float64[], error_cuda=Float64[])
-    nx = ny = 1000 # 501
+    df = DataFrame(
+        threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[], 
+        t_scatter_cpu=Float64[], t_scatter_cuda=Float64[], t_gather_cpu=Float64[], t_gather_cuda=Float64[], 
+        error_scatter_cpu=Float64[], error_scatter_cuda=Float64[], error_gather_cpu=Float64[], error_gather_cuda=Float64[])
+    nx = ny = 512 # 501
     for nxcell in (4, 12, 16, 24, 32, 50)
         t_scatter_cpu, t_scatter_cuda, misfit_scatter, misfit_scatter_cuda = main(nx, ny, nxcell)
         push!(df, [Threads.nthreads() nx ny nxcell t_scatter_cpu t_scatter_cuda misfit_scatter misfit_scatter_cuda])

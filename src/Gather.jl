@@ -94,7 +94,7 @@ function _gather2!(Fd, upper, lower)
     idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     idy  = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-    if (idx < size(Fd, 1)) && (idy < size(Fd, 2))
+    if (idx ≤ size(Fd, 1)) && (idy ≤ size(Fd, 2))
         @inbounds Fd[idx, idy] = upper[idx, idy] / lower[idx, idy]
     end
 
@@ -115,10 +115,11 @@ function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coo
     end
 
     # seond and final kernel that computes Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
-    N = length(Fd)
-    numblocks = ceil(Int, N/nt)
+    nx, ny = size(Fd)
+    nblocks_x = ceil(Int, nx/32)
+    nblocks_y = ceil(Int, ny/32)
     CUDA.@sync begin
-        @cuda threads=nt blocks=numblocks _gather2!(Fd, upper, lower)
+        @cuda threads=(32, 32) blocks=(nblocks_x, nblocks_y) _gather2!(Fd, upper, lower)
     end
 end
 
