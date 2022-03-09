@@ -115,20 +115,22 @@ function main(nx, ny, nxcell)
         Colorbar(f[1,4], s)
         display(f)
     end
+
+    e1_cpu, e1_cuda = mean(Fp.-sol), mean(Fpd.-sol_gpu)
     # return t_scatter_cpu, t_scatter_cuda, norm(Fp.-sol, 2)*dx*dy, norm(Fpd.-sol_gpu, 2)*dx*dy
-    return t_scatter_cpu, t_scatter_cuda, t_gather_cpu, t_gather_cuda, mean(Fp.-sol), mean(Fpd.-sol_gpu), mean(F.-F0), mean(Fd.-Fd0)
+    return t_scatter_cpu, t_scatter_cuda, t_gather_cpu, t_gather_cuda,  e1_cpu, e1_cuda
 end
 
 function perf_test()
     
     df = DataFrame(
-        threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[], 
+        threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[],
         t_scatter_cpu=Float64[], t_scatter_cuda=Float64[], t_gather_cpu=Float64[], t_gather_cuda=Float64[], 
-        error_scatter_cpu=Float64[], error_scatter_cuda=Float64[], error_gather_cpu=Float64[], error_gather_cuda=Float64[])
-    nx = ny = 512 # 501
-    for nxcell in (4, 12, 16, 24, 32, 50)
-        t_scatter_cpu, t_scatter_cuda, misfit_scatter, misfit_scatter_cuda = main(nx, ny, nxcell)
-        push!(df, [Threads.nthreads() nx ny nxcell t_scatter_cpu t_scatter_cuda misfit_scatter misfit_scatter_cuda])
+        error_cpu=Float64[], error_cuda=Float64[])
+    nx = ny = 512*2
+    for nxcell in (4, 25, 50, 75, 100)
+        out = main(nx, ny, nxcell)
+        push!(df, [Threads.nthreads() nx ny nxcell out...])
     end
 
     CSV.write("scatter_perf_$(Threads.nthreads())_fma_nxcell.csv", df)
@@ -136,3 +138,44 @@ function perf_test()
 end
 
 perf_test()
+
+files = readdir(".")[endswith.(readdir("."), "csv")]
+
+out = [CSV.read(f, DataFrame) for f in files]
+
+## TIMINGS
+f = Figure(fontsize=20)
+
+ax1 = Axis(f[1,1], title="scatter", ylabel="seconds", xscale = log10, yscale = log10)
+ax2 = Axis(f[2,1], title="gather", xlabel="particles", ylabel="seconds", xscale = log10, yscale = log10)
+for data in out
+    np = @. (data.nx*data.ny*data.nxcell)
+    lines!(ax1, np[2:end],  data.t_scatter_cpu[2:end], linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
+    l=lines!(ax2, np[2:end],  data.t_gather_cpu[2:end], linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
+end
+lines!(ax1, @.(out[end].nx*out[end].ny*out[end].nxcell)[2:end], out[end].t_scatter_cuda[2:end], 
+    color = :black, linestyle = :dash, linewidth=3,  label = "RTX3080")
+l=lines!(ax2, @.(out[end].nx*out[end].ny*out[end].nxcell)[2:end], out[end].t_gather_cuda[2:end], 
+    color = :black, linestyle = :dash, linewidth=3,  label = "RTX3080")
+
+for ax in (ax1, ax2)
+    ylims!(ax, (1e-2, 1e2))
+end
+hidexdecorations!(ax1, grid=false)
+f[3,1] = Legend(f, ax2, orientation=:horizontal, framevisible=false)
+f
+
+## SPEEDUP
+nt = [data.threads[end] for data in out]
+su_scatter = [data.t_scatter_cpu[end]./out[end].t_scatter_cuda[end] for data in out][sortperm(nt)]
+su_gather = [data.t_gather_cpu[end]./out[end].t_gather_cuda[end] for data in out][sortperm(nt)]
+sort!(nt)
+
+f = Figure(fontsize=20)
+ax1 = Axis(f[1,1], ylabel="speed up",  xlabel="threads", yscale=log10)
+lines!(ax1, nt, su_scatter, linestyle = :solid, linewidth=3, label="scatter")
+lines!(ax1, nt, su_gather, linestyle = :solid, linewidth=3, label="gather")
+ax1.xticks = nt
+ylims!(ax1, (1, 1e2))
+axislegend(ax1)
+f
