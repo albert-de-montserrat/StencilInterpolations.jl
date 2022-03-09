@@ -1,7 +1,7 @@
 
 distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {N, T} = 1/distance(a, b)^order
 
-## CPU
+## CPU 2D
 
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
     # indices of lowermost-left corner of   
@@ -25,44 +25,6 @@ distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {N, T} = 1/di
     lower[nt][idx_x+1, idx_y  ] += ω[2]
     lower[nt][idx_x,   idx_y+1] += ω[3]
     lower[nt][idx_x+1, idx_y+1] += ω[4]
-end
-
-
-@inbounds function _gathering!(upper, lower, Fpi, p, x, y, z, dxi, order)
-    # indices of lowermost-left corner of   
-    # the cell containing the particle
-    idx_x, idx_y, idx_z = parent_cell(p, dxi)
-
-    ω = (
-        distance_weigth( (x[idx_x],     y[idx_y],   z[idx_z]),   p, order=order),
-        distance_weigth( (x[idx_x+1],   y[idx_y],   z[idx_z]),   p, order=order),
-        distance_weigth( (x[idx_x],   y[idx_y+1],   z[idx_z]),   p, order=order),
-        distance_weigth( (x[idx_x+1], y[idx_y+1],   z[idx_z]),   p, order=order),
-        distance_weigth( (x[idx_x],     y[idx_y], z[idx_z+1]),   p, order=order),
-        distance_weigth( (x[idx_x+1],   y[idx_y], z[idx_z+1]),   p, order=order),
-        distance_weigth( (x[idx_x],   y[idx_y+1], z[idx_z+1]),   p, order=order),
-        distance_weigth( (x[idx_x+1], y[idx_y+1], z[idx_z+1]),   p, order=order)
-    )
-
-    nt = Threads.threadid()
-
-    upper[nt][idx_x,     idx_y,   idx_z] += ω[1]*Fpi
-    upper[nt][idx_x+1,   idx_y,   idx_z] += ω[2]*Fpi
-    upper[nt][idx_x,   idx_y+1,   idx_z] += ω[3]*Fpi
-    upper[nt][idx_x+1, idx_y+1,   idx_z] += ω[4]*Fpi
-    upper[nt][idx_x,     idx_y, idx_z+1] += ω[5]*Fpi
-    upper[nt][idx_x+1,   idx_y, idx_z+1] += ω[6]*Fpi
-    upper[nt][idx_x,   idx_y+1, idx_z+1] += ω[7]*Fpi
-    upper[nt][idx_x+1, idx_y+1, idx_z+1] += ω[8]*Fpi
-  
-    lower[nt][idx_x,     idx_y,   idx_z] += ω[1]
-    lower[nt][idx_x+1,   idx_y,   idx_z] += ω[2]
-    lower[nt][idx_x,   idx_y+1,   idx_z] += ω[3]
-    lower[nt][idx_x+1, idx_y+1,   idx_z] += ω[4]
-    lower[nt][idx_x,     idx_y, idx_z+1] += ω[5]
-    lower[nt][idx_x+1,   idx_y, idx_z+1] += ω[6]
-    lower[nt][idx_x,   idx_y+1, idx_z+1] += ω[7]
-    lower[nt][idx_x+1, idx_y+1, idx_z+1] += ω[8]
 end
 
 function gathering!(F::Array{T, 2}, Fp::Vector{T}, xi, dxi, particle_coords; order = 4) where {T}
@@ -92,8 +54,46 @@ function gathering!(F::Array{T, 2}, Fp::Vector{T}, xi, dxi, particle_coords; ord
 
 end
 
+
+## CPU 3D
+
+@inbounds function _gathering!(upper, lower, Fpi, p, x, y, z, dxi, order)
+    # indices of lowermost-left corner of   
+    # the cell containing the particle
+    idx_x, idx_y, idx_z = parent_cell(p, dxi)
+
+    ω = (
+        distance_weigth((x[idx_x],     y[idx_y],   z[idx_z]), p, order=order),
+        distance_weigth((x[idx_x+1],   y[idx_y],   z[idx_z]), p, order=order),
+        distance_weigth((x[idx_x],   y[idx_y+1],   z[idx_z]), p, order=order),
+        distance_weigth((x[idx_x+1], y[idx_y+1],   z[idx_z]), p, order=order),
+        distance_weigth((x[idx_x],     y[idx_y], z[idx_z+1]), p, order=order),
+        distance_weigth((x[idx_x+1],   y[idx_y], z[idx_z+1]), p, order=order),
+        distance_weigth((x[idx_x],   y[idx_y+1], z[idx_z+1]), p, order=order),
+        distance_weigth((x[idx_x+1], y[idx_y+1], z[idx_z+1]), p, order=order)
+    )
+
+    nt = Threads.threadid()
+
+    upper[nt][idx_x,     idx_y,   idx_z] += ω[1]*Fpi
+    upper[nt][idx_x+1,   idx_y,   idx_z] += ω[2]*Fpi
+    upper[nt][idx_x,   idx_y+1,   idx_z] += ω[3]*Fpi
+    upper[nt][idx_x+1, idx_y+1,   idx_z] += ω[4]*Fpi
+    upper[nt][idx_x,     idx_y, idx_z+1] += ω[5]*Fpi
+    upper[nt][idx_x+1,   idx_y, idx_z+1] += ω[6]*Fpi
+    upper[nt][idx_x,   idx_y+1, idx_z+1] += ω[7]*Fpi
+    upper[nt][idx_x+1, idx_y+1, idx_z+1] += ω[8]*Fpi
+    lower[nt][idx_x,     idx_y,   idx_z] += ω[1]
+    lower[nt][idx_x+1,   idx_y,   idx_z] += ω[2]
+    lower[nt][idx_x,   idx_y+1,   idx_z] += ω[3]
+    lower[nt][idx_x+1, idx_y+1,   idx_z] += ω[4]
+    lower[nt][idx_x,     idx_y, idx_z+1] += ω[5]
+    lower[nt][idx_x+1,   idx_y, idx_z+1] += ω[6]
+    lower[nt][idx_x,   idx_y+1, idx_z+1] += ω[7]
+    lower[nt][idx_x+1, idx_y+1, idx_z+1] += ω[8]
+end
+
 function gathering!(F::Array{T, 3}, Fp::Vector{T}, xi, dxi, particle_coords; order = 4) where {T}
-    
     # unpack tuples
     px, py, pz = particle_coords
     x, y, z = xi
@@ -116,10 +116,10 @@ function gathering!(F::Array{T, 3}, Fp::Vector{T}, xi, dxi, particle_coords; ord
             sum(upper[nt][i] for nt in 1:Threads.nthreads()) /
             sum(lower[nt][i] for nt in 1:Threads.nthreads())
     end
-
 end
 
-## CUDA
+
+## CUDA 2D
 
 function _gather1!(upper::CuDeviceMatrix{T, 1}, lower::CuDeviceMatrix{T, 1}, Fpd::CuDeviceVector{T, 1}, xi, dxi, p; order = 4) where T
     idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
@@ -167,9 +167,7 @@ function _gather2!(Fd, upper, lower)
 end
     
 function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
-    # TODO: pre-allocate the following buffers
-    upper = CUDA.zeros(T, size(Fd)) # we can recycle F here as buffer
-    # fill!(Fd, zero(T))
+    upper = CUDA.zeros(T, size(Fd))
     lower = CUDA.zeros(T, size(Fd)) 
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
@@ -184,7 +182,89 @@ function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coo
     nblocksx = ceil(Int, nx/32)
     nblocksy = ceil(Int, ny/32)
     CUDA.@sync begin
-        @cuda threads=(32,32) blocks=(nblocksx,nblocksy) _gather2!(Fd, upper, lower)
+        @cuda threads=(32, 32) blocks=(nblocksx, nblocksy, nblocksz) _gather2!(Fd, upper, lower)
+    end
+end
+
+
+## CUDA 3D 
+
+function _gather1!(upper::CuDeviceArray{T, 3}, lower::CuDeviceArray{T, 3}, Fpd::CuDeviceVector{T, 1}, xi, dxi, p; order = 4) where T
+    idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    
+    # unpack tuples
+    px, py, pz = p
+    x, y, z = xi
+
+    @inbounds if idx ≤ length(px)
+        p_idx = (px[idx], py[idx], pz[idx])
+
+        # indices of lowermost-left corner of
+        # the cell containing the particle
+        idx_x, idx_y, idx_z = parent_cell(p_idx, dxi)
+
+        ω1::Float64 = distance_weigth((x[idx_x],   y[idx_y],   z[idx_z]  ), p_idx, order=order)
+        ω2::Float64 = distance_weigth((x[idx_x+1], y[idx_y],   z[idx_z]  ), p_idx, order=order)
+        ω3::Float64 = distance_weigth((x[idx_x],   y[idx_y+1], z[idx_z]  ), p_idx, order=order)
+        ω4::Float64 = distance_weigth((x[idx_x+1], y[idx_y+1], z[idx_z]  ), p_idx, order=order)
+        ω5::Float64 = distance_weigth((x[idx_x],   y[idx_y],   z[idx_z+1]), p_idx, order=order)
+        ω6::Float64 = distance_weigth((x[idx_x+1], y[idx_y],   z[idx_z+1]), p_idx, order=order)
+        ω7::Float64 = distance_weigth((x[idx_x],   y[idx_y+1], z[idx_z+1]), p_idx, order=order)
+        ω8::Float64 = distance_weigth((x[idx_x+1], y[idx_y+1], z[idx_z+1]), p_idx, order=order)
+        
+        Fpi::Float64 = Fpd[idx] 
+
+        CUDA.@atomic upper[idx_x,     idx_y, idx_z  ] += ω1*Fpi
+        CUDA.@atomic upper[idx_x+1,   idx_y, idx_z  ] += ω2*Fpi
+        CUDA.@atomic upper[idx_x,   idx_y+1, idx_z  ] += ω3*Fpi
+        CUDA.@atomic upper[idx_x+1, idx_y+1, idx_z  ] += ω4*Fpi
+        CUDA.@atomic upper[idx_x,     idx_y, idx_z+1] += ω5*Fpi
+        CUDA.@atomic upper[idx_x+1,   idx_y, idx_z+1] += ω6*Fpi
+        CUDA.@atomic upper[idx_x,   idx_y+1, idx_z+1] += ω7*Fpi
+        CUDA.@atomic upper[idx_x+1, idx_y+1, idx_z+1] += ω8*Fpi
+        CUDA.@atomic lower[idx_x,     idx_y, idx_z  ] += ω1
+        CUDA.@atomic lower[idx_x+1,   idx_y, idx_z  ] += ω2
+        CUDA.@atomic lower[idx_x,   idx_y+1, idx_z  ] += ω3
+        CUDA.@atomic lower[idx_x+1, idx_y+1, idx_z  ] += ω4
+        CUDA.@atomic lower[idx_x,     idx_y, idx_z+1] += ω5
+        CUDA.@atomic lower[idx_x+1,   idx_y, idx_z+1] += ω6
+        CUDA.@atomic lower[idx_x,   idx_y+1, idx_z+1] += ω7
+        CUDA.@atomic lower[idx_x+1, idx_y+1, idx_z+1] += ω8
+    end
+
+    return
+end
+
+function _gather2!(Fd, upper, lower)
+    idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    idy  = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    idz  = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+
+    if (idx < size(Fd, 1)) && (idy < size(Fd, 2)) && (idz < size(Fd, 3))
+        @inbounds Fd[idx, idy] = upper[idx, idy] / lower[idx, idy]
+    end
+
+    return
+end
+    
+function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
+    upper = CUDA.zeros(T, size(Fd))
+    lower = CUDA.zeros(T, size(Fd)) 
+
+    # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
+    N = length(Fpd)
+    numblocks = ceil(Int, N/nt)
+    CUDA.@sync begin
+        @cuda threads=nt blocks=numblocks _gather1!(upper, lower, Fpd, xi, dxi, particle_coords)
+    end
+
+    # seond and final kernel that computes Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
+    nx, ny, nz = size(Fd)
+    nblocksx = ceil(Int, nx/8)
+    nblocksy = ceil(Int, ny/8)
+    nblocksz = ceil(Int, nz/8)
+    CUDA.@sync begin
+        @cuda threads=(8, 8, 8) blocks=(nblocksx, nblocksy, nblocksz) _gather2!(Fd, upper, lower)
     end
 end
 
