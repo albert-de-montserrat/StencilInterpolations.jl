@@ -8,50 +8,53 @@ using StencilInterpolation
 
 const viz = false
 
-function random_particles(nxcell, x, y, dx, dy, nx, ny)
-    ncells = (nx-1)*(ny-1)
-    px, py = zeros(nxcell*ncells), zeros(nxcell*ncells)
-    dxdy = dx*dy
-    for idx_x in 1:nx-1, idx_y in 1:ny-1
-        x0, y0 = x[idx_x], y[idx_y]
-        
-        cell = idx_x + (nx-1) * (idx_y-1)
-        for i in 1:nxcell
-            px[(cell-1)*nxcell+i], py[(cell-1)*nxcell+i] = rand()*dxdy+x0, rand()*dxdy+y0
+function random_particles(nxcell, x, y, z, dx, dy, dz, nx, ny, nz)
+    ncells = (nx-1)*(ny-1)*(nz-1)
+    px, py, pz = zeros(nxcell*ncells), zeros(nxcell*ncells), zeros(nxcell*ncells)
+    for i in 1:nx-1
+        for j in 1:ny-1, k in 1:nz-1
+            # lowermost-left corner of the cell
+            x0, y0, z0 = x[i], y[j], z[k]
+            # cell index
+            cell = i + (nx-1)*(j-1) + (nx-1)*(ny-1)*(k-1)
+            for l in 1:nxcell
+                px[(cell-1)*nxcell + l] = rand()*dx + x0
+                py[(cell-1)*nxcell + l] = rand()*dy + y0
+                pz[(cell-1)*nxcell + l] = rand()*dz + z0
+            end
         end
     end
-    return px, py
+    return px, py, pz
 end
 
-function main(nx, ny, nxcell)
+function main(nx, ny, nz, nxcell)
 
     # model domain
-    lx = ly = 1
-    dx, dy = lx/(nx-1), ly/(ny-1)
+    lx = ly = lz = 1
+    dx, dy, dz = lx/(nx-1), ly/(ny-1), lz/(nz-1)
     x = LinRange(0, lx, nx)
     y = LinRange(0, ly, ny)
+    z = LinRange(0, lz, nz)
 
     # random particles
-    px, py = random_particles(nxcell, x, y, dx, dy, nx, ny)
-    # px, py = rand(N), rand(N)
-    particle_coords = (px, py)
-    p = (px, py)
+    px, py, pz = random_particles(nxcell, x, y, z, dx, dy, dz, nx, ny, nz)
+    particle_coords = (px, py, pz)
     N = length(px)
 
     # random field
-    F = [-sin(2*yi)*cos(3*π*xi) for xi in x, yi in y]
+    F = [-sin(2*zi)*cos(3*π*xi) for xi in x, _ in y, zi in z]
     F0 = deepcopy(F)
 
     ## CPU -----------------------------------------------------------------------------------------
 
-    # scattering operation (for now just bi-linear interpolation)
-    t_scatter_cpu = @elapsed Fp = scattering( (x, y), (dx, dy), F, particle_coords)
+    # scattering operation (tri-linear interpolation)
+    t_scatter_cpu = @elapsed Fp = scattering( (x, y, z), (dx, dy, dz), F, particle_coords)
 
     # gathering operation (inverse distance weighting)
-    t_gather_cpu = @elapsed gathering!(F, Fp, (x, y), (dx, dy), particle_coords)
+    t_gather_cpu = @elapsed gathering!(F, Fp, (x, y, z), (dx, dy, dz), particle_coords)
 
     # Compute error
-    sol = [-sin(2*yi)*cos(3*π*xi) for (xi, yi) in zip(px,py)]
+    sol = [-sin(2*zi)*cos(3*π*xi) for (xi, zi) in zip(px, pz)]
     misfit_scatter = @.(log10(abs(Fp-sol)))
     misfit_gather = @.(log10(abs(F-F0)))
 
@@ -62,7 +65,7 @@ function main(nx, ny, nxcell)
     Fd0 = deepcopy(Fd)
 
     # scattering operation (for now just bi-linear interpolation)
-    t_scatter_cuda = @elapsed scattering!(Fpd, (x, y), (dx, dy), Fd, CuArray.(particle_coords))
+    t_scatter_cuda = @elapsed scattering!(Fpd, (x, y, z), (dx, dy, dz), Fd, CuArray.(particle_coords))
 
     # gathering operation (inverse distance weighting)
     particle_coords_dev = CuArray.(particle_coords)
@@ -74,13 +77,13 @@ function main(nx, ny, nxcell)
     misfit_scatter_cuda = @.(log10(abs(Fpd-sol_gpu)))
     misfit_gather_cuda = @.(log10(abs(Fd-Fd0)))
 
-    println("Finished for Ω ∈ [0,1] × [0,1]; $(nx) × $(nx) nodes; $nxcell particles per cell or $(Float64(N)) particles")
+    println("Finished for Ω ∈ [0,1] × [0,1] × [0,1]; $(nx) × $(ny) × $(nz) nodes; $nxcell particles per cell or $(Float64(N)) particles")
 
     # Plots CPU
     if viz == true
         f = Figure(resolution=(1600, 600))
         a = Axis(f[1,1], aspect=1, title="Analytical")
-        heatmap!(a, x, y, F, colormap=:batlow)
+        scatter!(a, px, py, pz, color=F, colormap=:batlow,markersize=15)
         xlims!(0, lx)
         ylims!(0, ly)
 

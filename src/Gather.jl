@@ -1,5 +1,5 @@
 
-distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {T, N} = 1/distance(a, b)^order
+distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {N, T} = 1/distance(a, b)^order
 
 ## CPU
 
@@ -9,20 +9,20 @@ distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {T, N} = 1/di
     idx_x, idx_y = parent_cell(p, dxi)
 
     ω = (
-        distance_weigth( (x[idx_x],   y[idx_y]),   p, order=order),
-        distance_weigth( (x[idx_x+1], y[idx_y]),   p, order=order),
-        distance_weigth( (x[idx_x],   y[idx_y+1]), p, order=order),
+        distance_weigth( (x[idx_x  ], y[idx_y  ]), p, order=order),
+        distance_weigth( (x[idx_x+1], y[idx_y  ]), p, order=order),
+        distance_weigth( (x[idx_x  ], y[idx_y+1]), p, order=order),
         distance_weigth( (x[idx_x+1], y[idx_y+1]), p, order=order)
     )
 
     nt = Threads.threadid()
 
-    upper[nt][idx_x,     idx_y] += ω[1]*Fpi
-    upper[nt][idx_x+1,   idx_y] += ω[2]*Fpi
+    upper[nt][idx_x,   idx_y  ] += ω[1]*Fpi
+    upper[nt][idx_x+1, idx_y  ] += ω[2]*Fpi
     upper[nt][idx_x,   idx_y+1] += ω[3]*Fpi
     upper[nt][idx_x+1, idx_y+1] += ω[4]*Fpi
-    lower[nt][idx_x,     idx_y] += ω[1]
-    lower[nt][idx_x+1,   idx_y] += ω[2]
+    lower[nt][idx_x,   idx_y  ] += ω[1]
+    lower[nt][idx_x+1, idx_y  ] += ω[2]
     lower[nt][idx_x,   idx_y+1] += ω[3]
     lower[nt][idx_x+1, idx_y+1] += ω[4]
 end
