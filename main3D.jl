@@ -1,4 +1,5 @@
 using CSV
+using CairoMakie
 using DataFrames
 using Statistics
 using CUDA
@@ -70,7 +71,7 @@ function main(nx, ny, nz, nxcell)
     # gathering operation (inverse distance weighting)
     particle_coords_dev = CuArray.(particle_coords)
     fill!(Fd, 0.0)
-    t_gather_cuda = @elapsed gathering!(Fd, Fpd, (x, y), (dx, dy), particle_coords_dev)
+    t_gather_cuda = @elapsed gathering!(Fd, Fpd, (x, y, z), (dx, dy, dz), particle_coords_dev)
        
     # Compute error
     sol_gpu = CuArray(sol)
@@ -120,29 +121,38 @@ function main(nx, ny, nz, nxcell)
     end
 
     e1_cpu, e1_cuda = mean(Fp.-sol), mean(Fpd.-sol_gpu)
-    # return t_scatter_cpu, t_scatter_cuda, norm(Fp.-sol, 2)*dx*dy, norm(Fpd.-sol_gpu, 2)*dx*dy
     return t_scatter_cpu, t_scatter_cuda, t_gather_cpu, t_gather_cuda,  e1_cpu, e1_cuda
 end
 
 function perf_test()
     
     df = DataFrame(
-        threads=Int16[], nx=Int64[], ny=Int64[], nxcell=Float64[],
-        t_scatter_cpu=Float64[], t_scatter_cuda=Float64[], t_gather_cpu=Float64[], t_gather_cuda=Float64[], 
-        error_cpu=Float64[], error_cuda=Float64[])
-    nx = ny = 512*2
-    for nxcell in (4, 25, 50, 75, 100)
-        out = main(nx, ny, nxcell)
-        push!(df, [Threads.nthreads() nx ny nxcell out...])
+        threads=Int16[], 
+        nx=Int64[], 
+        ny=Int64[], 
+        nz=Int64[], 
+        nxcell=Float64[],
+        t_scatter_cpu=Float64[], 
+        t_scatter_cuda=Float64[], 
+        t_gather_cpu=Float64[], 
+        t_gather_cuda=Float64[], 
+        error_cpu=Float64[], 
+        error_cuda=Float64[]
+    )
+
+    nx = ny = nz = 128
+    for nxcell in (4, 15, 25, 50)
+        out = main(nx, ny, nz, nxcell)
+        push!(df, [Threads.nthreads() nx ny nz nxcell out...])
     end
 
-    CSV.write("scatter_perf_$(Threads.nthreads())_fma_nxcell.csv", df)
+    CSV.write("scatter_perf_$(Threads.nthreads())_nxcell_3D.csv", df)
     
 end
 
 perf_test()
 
-files = readdir(".")[endswith.(readdir("."), "csv")]
+files = readdir(".")[endswith.(readdir("."), "3D.csv")]
 
 out = [CSV.read(f, DataFrame) for f in files]
 
@@ -152,13 +162,13 @@ f = Figure(fontsize=20)
 ax1 = Axis(f[1,1], title="scatter", ylabel="seconds", xscale = log10, yscale = log10)
 ax2 = Axis(f[2,1], title="gather", xlabel="particles", ylabel="seconds", xscale = log10, yscale = log10)
 for data in out
-    np = @. (data.nx*data.ny*data.nxcell)
-    lines!(ax1, np[2:end],  data.t_scatter_cpu[2:end], linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
-    l=lines!(ax2, np[2:end],  data.t_gather_cpu[2:end], linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
+    np = @. data.nx*data.ny*data.nz*data.nxcell
+    lines!(ax1, np,  data.t_scatter_cpu, linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
+    l=lines!(ax2, np,  data.t_gather_cpu, linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
 end
-lines!(ax1, @.(out[end].nx*out[end].ny*out[end].nxcell)[2:end], out[end].t_scatter_cuda[2:end], 
+lines!(ax1, @.(out[end].nx*out[end].ny*out[end].ny*out[end].nxcell), out[end].t_scatter_cuda, 
     color = :black, linestyle = :dash, linewidth=3,  label = "RTX3080")
-l=lines!(ax2, @.(out[end].nx*out[end].ny*out[end].nxcell)[2:end], out[end].t_gather_cuda[2:end], 
+l=lines!(ax2, @.(out[end].nx*out[end].ny*out[end].ny*out[end].nxcell), out[end].t_gather_cuda, 
     color = :black, linestyle = :dash, linewidth=3,  label = "RTX3080")
 
 for ax in (ax1, ax2)
