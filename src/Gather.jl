@@ -1,4 +1,3 @@
-
 distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {N, T} = 1/distance(a, b)^order
 
 ## CPU 2D
@@ -155,7 +154,7 @@ function _gather1!(upper::CuDeviceMatrix{T, 1}, lower::CuDeviceMatrix{T, 1}, Fpd
     return
 end
 
-function _gather2!(Fd, upper, lower)
+function _gather2!(Fd::CuDeviceArray{T, 2}, upper, lower) where T
     idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     idy  = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
@@ -235,19 +234,19 @@ function _gather1!(upper::CuDeviceArray{T, 3}, lower::CuDeviceArray{T, 3}, Fpd::
     return
 end
 
-function _gather2!(Fd, upper, lower)
+function _gather2!(Fd::CuDeviceArray{T, 3}, upper::CuDeviceArray{T, 3}, lower::CuDeviceArray{T, 3}) where T
     idx  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     idy  = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     idz  = (blockIdx().z - 1) * blockDim().z + threadIdx().z
 
-    if (idx < size(Fd, 1)) && (idy < size(Fd, 2)) && (idz < size(Fd, 3))
-        @inbounds Fd[idx, idy] = upper[idx, idy] / lower[idx, idy]
+    if (idx ≤ size(Fd, 1)) && (idy ≤ size(Fd, 2)) && (idz ≤ size(Fd, 3))
+        @inbounds Fd[idx, idy, idz] = upper[idx, idy, idz] / lower[idx, idy, idz]
     end
 
     return
 end
     
-function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
+function gathering!(Fd::CuArray{T, 3}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
     upper = CUDA.zeros(T, size(Fd))
     lower = CUDA.zeros(T, size(Fd)) 
 
@@ -267,5 +266,3 @@ function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coo
         @cuda threads=(8, 8, 8) blocks=(nblocksx, nblocksy, nblocksz) _gather2!(Fd, upper, lower)
     end
 end
-
-

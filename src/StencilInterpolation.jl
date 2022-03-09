@@ -5,7 +5,7 @@ using MuladdMacro
 using VectorizationBase
 using VectorizationBase: Vec, vsum, vadd
 
-include("utils/Utils.jl")
+include("Utils.jl")
 include("Scatter.jl")
 include("Gather.jl")
 
