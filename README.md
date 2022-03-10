@@ -37,7 +37,7 @@ particle_coords = (px, py, pz)
 On CPU
 ```Julia
 # scattering operation (tri-linear interpolation)
-Fp = scattering((x, y, z), (dx, dy, dz), Fparticle_coords)
+Fp = scattering((x, y, z), (dx, dy, dz), F, particle_coords)
 
 # gathering operation (inverse distance weighting)
 gathering!(F, Fp, (x, y, z), (dx, dy, dz), particle_coords)
