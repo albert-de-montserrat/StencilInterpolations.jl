@@ -4,7 +4,6 @@
 ```Julia
 # model domain
 lx = ly = lz = 1
-dx, dy, dz = lx/(nx-1), ly/(ny-1), lz/(nz-1)
 x = LinRange(0, lx, nx)
 y = LinRange(0, ly, ny)
 z = LinRange(0, lz, nz)
@@ -37,10 +36,10 @@ particle_coords = (px, py, pz)
 On CPU
 ```Julia
 # scattering operation (tri-linear interpolation)
-Fp = scattering((x, y, z), (dx, dy, dz), F, particle_coords)
+Fp = scattering((x, y, z), F, particle_coords)
 
 # gathering operation (inverse distance weighting)
-gathering!(F, Fp, (x, y, z), (dx, dy, dz), particle_coords)
+gathering!(F, Fp, (x, y, z), particle_coords)
 ```
 
 Using CUDA
@@ -49,23 +48,23 @@ Using CUDA
 Fpd = CUDA.zeros(Float64, length(px))
 Fd = CuArray(F)
 Fd0 = deepcopy(Fd)
+particle_coords_dev = CuArray.(particle_coords)
 
 # scattering operation (tri-linear interpolation)
-scattering!(Fpd, (x, y, z), (dx, dy, dz), Fd, CuArray.(particle_coords))
+scattering!(Fpd, (x, y, z), Fd,particle_coords_dev)
 
 # gathering operation (inverse distance weighting)
-particle_coords_dev = CuArray.(particle_coords)
 fill!(Fd, 0.0)
-gathering!(Fd, Fpd, (x, y, z), (dx, dy, dz), particle_coords_dev)
+gathering!(Fd, Fpd, (x, y, z), particle_coords_dev)
 ```
 Resulting interpolated fields
 ![image](figs/trilinear.png)
 
 # Performance
-## Bi-linear interpolation and 2D weighted inverse distance interpolation
+<!-- ## Bi-linear interpolation and 2D weighted inverse distance interpolation
 
 ![image](figs/RTX3080.png)
-![image](figs/speedup_RTX3080.png)
+![image](figs/speedup_RTX3080.png) -->
 
 ## Tri-linear interpolation and 3D weighted inverse distance interpolation
 
