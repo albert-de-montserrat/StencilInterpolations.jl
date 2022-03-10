@@ -1,5 +1,5 @@
 using CSV
-using CairoMakie
+# using CairoMakie
 using DataFrames
 using Statistics
 using CUDA
@@ -42,7 +42,7 @@ function main(nx, ny, nz, nxcell)
     particle_coords = (px, py, pz)
     N = length(px)
 
-    # random field
+    # field to interpolate
     F = [-sin(2*zi)*cos(3*π*xi) for xi in x, _ in y, zi in z]
     F0 = deepcopy(F)
 
@@ -82,42 +82,59 @@ function main(nx, ny, nz, nxcell)
 
     # Plots CPU
     if viz == true
-        f = Figure(resolution=(1600, 600))
+        xx = vec([x for x in x, y in y, z in z])
+        yy = vec([y for x in x, y in y, z in z])
+        zz = vec([z for x in x, y in y, z in z])
+
+        f = Figure(resolution=(1600, 1200), fontsize=20)
         a = Axis(f[1,1], aspect=1, title="Analytical")
-        scatter!(a, px, py, pz, color=F, colormap=:batlow,markersize=15)
+        scatter!(a, xx, yy, zz, color=vec(F), colormap=:batlow, markersize=10)
         xlims!(0, lx)
         ylims!(0, ly)
+        ylims!(0, lz)
+        hidexdecorations!(a)
 
         a = Axis(f[1, 2], aspect=1, title="Scattered")
         scatter!(a, px, py, color=Fp, colormap=:batlow)
         xlims!(0, lx)
         ylims!(0, ly)
+        ylims!(0, lz)
+        hidedecorations!(a)
 
         a = Axis(f[1, 3], aspect=1, title="log10 error")
         s = scatter!(a, px, py, color=misfit_scatter, colormap=:batlow)
         xlims!(0, lx)
         ylims!(0, ly)
-        Colorbar(f[1,4], s)
+        ylims!(0, lz)
+        hidedecorations!(a)
+
+        Colorbar(f[1,4], s, height = 450)
         display(f)
 
         # Plots GPU
-        f = Figure(resolution=(1600, 600))
-        a = Axis(f[1,1], aspect=1, title="Analytical")
-        heatmap!(a, x, y, F, colormap=:batlow)
+        a = Axis(f[2,1], aspect=1, title="CUDA")
+        scatter!(a, xx, yy, zz, color=vec(F), colormap=:batlow, markersize=10)
         xlims!(0, lx)
         ylims!(0, ly)
+        ylims!(0, lz)
 
-        a = Axis(f[1, 2], aspect=1, title="Scattered")
+        a = Axis(f[2, 2], aspect=1, title="CUDA")
         scatter!(a, px, py, color=Array(Fpd), colormap=:batlow)
         xlims!(0, lx)
         ylims!(0, ly)
+        ylims!(0, lz)
+        hideydecorations!(a)
 
-        a = Axis(f[1, 3], aspect=1, title="log10 error")
+        a = Axis(f[2, 3], aspect=1, title="CUDA")
         s = scatter!(a, px, py, color=Array(misfit_scatter_cuda), colormap=:batlow)
         xlims!(0, lx)
         ylims!(0, ly)
-        Colorbar(f[1,4], s)
+        ylims!(0, lz)
+        hideydecorations!(a)
+        Colorbar(f[2,4], s, height = 450)
+
         display(f)
+
     end
 
     e1_cpu, e1_cuda = mean(Fp.-sol), mean(Fpd.-sol_gpu)
@@ -155,6 +172,10 @@ perf_test()
 files = readdir(".")[endswith.(readdir("."), "3D.csv")]
 
 out = [CSV.read(f, DataFrame) for f in files]
+# sort by number of threads
+nthreads = [data.threads[1] for data in out]
+isort = sortperm(nthreads)
+out = out[isort]
 
 ## TIMINGS
 f = Figure(fontsize=20)
@@ -163,12 +184,12 @@ ax1 = Axis(f[1,1], title="scatter", ylabel="seconds", xscale = log10, yscale = l
 ax2 = Axis(f[2,1], title="gather", xlabel="particles", ylabel="seconds", xscale = log10, yscale = log10)
 for data in out
     np = @. data.nx*data.ny*data.nz*data.nxcell
-    lines!(ax1, np,  data.t_scatter_cpu, linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
-    l=lines!(ax2, np,  data.t_gather_cpu, linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
+    lines!(ax1, np[2:end],  data.t_scatter_cpu[2:end], linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
+    l=lines!(ax2, np[2:end],  data.t_gather_cpu[2:end], linestyle = :solid, linewidth=3, label = "$(data.threads[1]) threads")
 end
-lines!(ax1, @.(out[end].nx*out[end].ny*out[end].ny*out[end].nxcell), out[end].t_scatter_cuda, 
+lines!(ax1, @.(out[end].nx*out[end].ny*out[end].ny*out[end].nxcell)[2:end], out[end].t_scatter_cuda[2:end], 
     color = :black, linestyle = :dash, linewidth=3,  label = "RTX3080")
-l=lines!(ax2, @.(out[end].nx*out[end].ny*out[end].ny*out[end].nxcell), out[end].t_gather_cuda, 
+l=lines!(ax2, @.(out[end].nx*out[end].ny*out[end].ny*out[end].nxcell)[2:end], out[end].t_gather_cuda[2:end], 
     color = :black, linestyle = :dash, linewidth=3,  label = "RTX3080")
 
 for ax in (ax1, ax2)
