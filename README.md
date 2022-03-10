@@ -1,4 +1,4 @@
-# StencilInterpolation
+# StencilInterpolations.jl
 
 
 ```Julia
