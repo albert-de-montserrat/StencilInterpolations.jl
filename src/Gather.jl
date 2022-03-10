@@ -4,7 +4,7 @@ distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {N, T} = 1/di
 
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
     # indices of lowermost-left corner of   
-    # the cell containing the particle
+    # the cell containing the particlex
     idx_x, idx_y = parent_cell(p, dxi)
 
     ω = (
@@ -26,11 +26,12 @@ distance_weigth(a::NTuple{N, T}, b::NTuple{N, T}; order = 4) where {N, T} = 1/di
     lower[nt][idx_x+1, idx_y+1] += ω[4]
 end
 
-function gathering!(F::Array{T, 2}, Fp::Vector{T}, xi, dxi, particle_coords; order = 4) where {T}
+function gathering!(F::Array{T, 2}, Fp::Vector{T}, xi, particle_coords; order = 4) where {T}
     
     # unpack tuples
     px, py = particle_coords
     x, y = xi
+    dxi = (x[2]-x[1], y[2]-y[1])
 
     # number of particles
     np = length(Fp)
@@ -92,10 +93,11 @@ end
     lower[nt][idx_x+1, idx_y+1, idx_z+1] += ω[8]
 end
 
-function gathering!(F::Array{T, 3}, Fp::Vector{T}, xi, dxi, particle_coords; order = 4) where {T}
+function gathering!(F::Array{T, 3}, Fp::Vector{T}, xi, particle_coords; order = 4) where {T}
     # unpack tuples
     px, py, pz = particle_coords
     x, y, z = xi
+    dxi = (x[2]-x[1], y[2]-y[1], z[2]-z[1])
 
     # number of particles
     np = length(Fp)
@@ -168,6 +170,7 @@ end
 function gathering!(Fd::CuArray{T, 2}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
     upper = CUDA.zeros(T, size(Fd))
     lower = CUDA.zeros(T, size(Fd)) 
+    dxi = (x[2]-x[1], y[2]-y[1])
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
     N = length(Fpd)
@@ -246,7 +249,9 @@ function _gather2!(Fd::CuDeviceArray{T, 3}, upper::CuDeviceArray{T, 3}, lower::C
     return
 end
     
-function gathering!(Fd::CuArray{T, 3}, Fpd::CuArray{T, 1}, xi, dxi, particle_coords; nt = 512) where T
+function gathering!(Fd::CuArray{T, 3}, Fpd::CuArray{T, 1}, xi, particle_coords; nt = 512) where T
+    x, y, z = xi
+    dxi = (x[2]-x[1], y[2]-y[1], z[2]-z[1])
     upper = CUDA.zeros(T, size(Fd))
     lower = CUDA.zeros(T, size(Fd)) 
 

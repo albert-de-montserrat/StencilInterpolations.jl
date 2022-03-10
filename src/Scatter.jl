@@ -1,35 +1,51 @@
+## ND LINEAR INTERPOLATION KERNELS
+
+# 1D linear interpolation
+lerp(t, v0, v1) = fma(t, v1, fma(-t, v0, v0))
+
+# bilinear interpolation
+function bilinear(tx, ty, v00, v10, v01, v11) 
+    return lerp(ty, lerp(tx, v00, v10), lerp(tx, v01, v11))
+end
+
+# trilinear interpolation
+function trilinear(tx, ty, tz, v000, v100, v001, v101, v010, v110, v011, v111) 
+    return lerp(
+        ty, 
+        bilinear(tx, tz,  v000, v100, v001, v101), 
+        bilinear(tx, tz, v010, v110, v011, v111)
+    )
+end
+
 ## CPU BI-LINEAR
 
-function _scattering(p::NTuple{2, A}, dxi::NTuple{2, B}, xi::NTuple{2, C}, F::Array{D, 2}) where {A,B,C,D}
+function _scattering(p::NTuple{2, A}, xi::NTuple{2, B}, F::Array{C, 2}) where {A, B, C}
     # unpack tuples
-    dx, dy = dxi
-    px, py = p
     x, y = xi
+    dx, dy = x[2]-x[1], y[2]-y[1]
+    px, py = p
 
     # indices of lowermost-left corner of the cell 
     # containing the particle
     idx_x, idx_y = parent_cell(p, dxi)
 
-    dx_particle = px - x[idx_x]
-    dy_particle = py - y[idx_y]
-   
+    # normalize particle coordinates
+    tx = (px - x[idx_x])/dx
+    ty = (py - y[idx_y])/dy
+
     # Interpolate field F onto particle
-    Fp =
-        F[idx_x,   idx_y  ]*(1-dx_particle/dx)*(1-dy_particle/dy) + 
-        F[idx_x,   idx_y+1]*(dx_particle/dx)*(1-dy_particle/dy) + 
-        F[idx_x+1, idx_y  ]*(1-dx_particle/dx)*(dy_particle/dy) + 
-        F[idx_x+1, idx_y+1]*(dx_particle/dx)*(dy_particle/dy)
+    Fp = bilinear(tx, ty,  F[idx_x, idx_y], F[idx_x+1, idx_y], F[idx_x, idx_y+1], F[idx_x+1, idx_y+1]) 
 
     return Fp
 end
 
-function scattering(xi, dxi, F::Array{T, 2}, particle_coords) where {T}
+function scattering(xi, F::Array{T, 2}, particle_coords) where {T}
     
     np = length(particle_coords[1])
     Fp = zeros(T, np)
 
     Threads.@threads for i in 1:np
-        @inbounds Fp[i] = _scattering((particle_coords[1][i], particle_coords[2][i]), dxi, xi, F)
+        @inbounds Fp[i] = _scattering((particle_coords[1][i], particle_coords[2][i]), xi, F)
     end
 
     return Fp
@@ -38,39 +54,10 @@ end
 
 ## CPU TRI-LINEAR
 
-function _scattering(p::NTuple{3, A}, dxi::NTuple{3, B}, xi::NTuple{3, C}, F::Array{D, 3}) where {A, B, C, D}
-    # unpack tuples
-    dx, dy, dz = @. 1/dxi
-    px, py, pz = p
-    x, y, z = xi
-
-    # indices of lowermost-left corner of the cell 
-    # containing the particle
-    idx_x, idx_y, idx_z = parent_cell(p, dxi)
-
-    # distance from particle to lowermost-left corner of the cell 
-    dx_particle = px - x[idx_x]
-    dy_particle = py - y[idx_y]
-    dz_particle = pz - z[idx_z]
-   
-    # Interpolate field F onto particle
-    Fp =
-        F[idx_x,   idx_y  , idx_z  ]*(1-dx_particle*dx)*(1-dy_particle*dy)*(1-dz_particle*dz) + 
-        F[idx_x,   idx_y+1, idx_z  ]*(dx_particle*dx)*(1-dy_particle*dy)*(1-dz_particle*dz) + 
-        F[idx_x+1, idx_y  , idx_z  ]*(1-dx_particle*dx)*(dy_particle*dy)*(1-dz_particle*dz) + 
-        F[idx_x+1, idx_y+1, idx_z  ]*(dx_particle*dx)*(dy_particle*dy)*(1-dz_particle*dz) +
-        F[idx_x,   idx_y  , idx_z+1]*(1-dx_particle*dx)*(1-dy_particle*dy)*(dz_particle*dz) +  
-        F[idx_x,   idx_y+1, idx_z+1]*(dx_particle*dx)*(1-dy_particle*dy)*(dz_particle*dz) +  
-        F[idx_x+1, idx_y  , idx_z+1]*(1-dx_particle*dx)*(dy_particle*dy)*(dz_particle*dz) +  
-        F[idx_x+1, idx_y+1, idx_z+1]*(dx_particle*dx)*(dy_particle*dy)*(dz_particle*dz)
-
-    return Fp
-end
-
 # manually vectorized version of trilinear kernel
-function _vscattering(p::NTuple{3, A}, dxi::NTuple{3, B}, xi::NTuple{3, C}, F::Array{Float64, 3}) where {A, B, C}
+function _vscattering(p::NTuple{3, A}, xi::NTuple{3, B}, F::Array{Float64, 3}) where {A, B}
     # unpack tuples
-    dx, dy, dz = @. 1/dxi
+    dx, dy, dz = @. 1/(x[2]-x[1], y[2]-y[1], z[2]-z[1])
     px, py, pz = p
     x, y, z = xi
 
@@ -123,9 +110,9 @@ function _vscattering(p::NTuple{3, A}, dxi::NTuple{3, B}, xi::NTuple{3, C}, F::A
     return Fp
 end
 
-function _vscattering(p::NTuple{3, A}, dxi::NTuple{3, B}, xi::NTuple{3, C}, F::Array{Float32, 3}) where {A, B, C}
+function _vscattering(p::NTuple{3, A}, xi::NTuple{3, B}, F::Array{Float32, 3}) where {A, B}
     # unpack tuples
-    dx, dy, dz = @. 1/dxi
+    dx, dy, dz = @. 1/(x[2]-x[1], y[2]-y[1], z[2]-z[1])
     px, py, pz = p
     x, y, z = xi
 
@@ -170,13 +157,47 @@ function _vscattering(p::NTuple{3, A}, dxi::NTuple{3, B}, xi::NTuple{3, C}, F::A
     return Fp
 end
 
-function scattering(xi, dxi, F::Array{T, 3}, particle_coords) where {T}
-    
+function _scattering(p::NTuple{3, A}, dxi::NTuple{3, A}, xi::NTuple{3, B}, F::Array{C, 3}) where {A, B, C}
+    # unpack tuples
+    dx, dy, dz = dxi
+    px, py, pz = p
+    x, y, z = xi
+ 
+    # indices of lowermost-left corner of the cell 
+    # containing the particle
+    idx_x, idx_y, idx_z = parent_cell(p, dxi)
+ 
+    # distance from particle to lowermost-left corner of the cell 
+    tx = (px - x[idx_x])/dx
+    ty = (py - y[idx_y])/dy
+    tz = (pz - z[idx_z])/dz
+
+    # Interpolate field F onto particle
+    Fp = trilinear(
+        tx, 
+        ty, 
+        tz, 
+        F[idx_x,   idx_y,   idx_z],   # v000
+        F[idx_x+1, idx_y,   idx_z],   # v100
+        F[idx_x,   idx_y,   idx_z+1], # v001
+        F[idx_x+1, idx_y,   idx_z+1], # v101
+        F[idx_x,   idx_y+1, idx_z],   # v010
+        F[idx_x+1, idx_y+1, idx_z],   # v110
+        F[idx_x,   idx_y+1, idx_z+1], # v011
+        F[idx_x+1, idx_y+1, idx_z+1], # v111
+    ) 
+    return Fp
+end
+
+function scattering(xi, F::Array{T, 3}, particle_coords) where {T}
+    # unpack tuples
+    x, y, z = xi
+    dxi = (x[2]-x[1], y[2]-y[1], z[2]-z[1])
     np = length(particle_coords[1])
     Fp = zeros(T, np)
 
     Threads.@threads for i in 1:np
-        @inbounds Fp[i] = _vscattering((particle_coords[1][i], particle_coords[2][i],  particle_coords[3][i]), dxi, xi, F)
+        @inbounds Fp[i] = _scattering((particle_coords[1][i], particle_coords[2][i],  particle_coords[3][i]), dxi, xi, F)
     end
 
     return Fp
@@ -184,12 +205,13 @@ end
 
 
 ## CUDA BI-LINEAR
-function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, dxi::NTuple{2, B}, xi::NTuple{2, C}, F::CuDeviceMatrix{T, 1}) where {A, B, C, T}
+
+function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, xi::NTuple{2, B}, F::CuDeviceMatrix{T, 1}) where {A, B, T}
 
     ix  = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
     # unpack tuples
-    dx, dy = dxi
+    dx, dy = x[2]-x[1], y[2]-y[1]
     px, py = p
     x, y = xi
 
@@ -198,26 +220,22 @@ function _scattering!(Fp::CuDeviceVector{T, 1}, p::NTuple{2, A}, dxi::NTuple{2, 
         # containing the particle
         idx_x, idx_y = parent_cell((px[ix], py[ix]), dxi)
 
-        dx_particle = px[ix] - x[idx_x]
-        dy_particle = py[ix] - y[idx_y]
-    
+        # normalize particle coordinates
+        tx = (px[ix] - x[idx_x])/dx
+        ty = (py[ix] - y[idx_y])/dy
+
         # Interpolate field F onto particle
-        Fp[ix] = 
-            muladd(F[idx_x+1, idx_y+1]*(dx_particle/dx), dy_particle/dy, 
-            muladd(F[idx_x+1, idx_y  ]*(1 - dx_particle/dx), dy_particle/dy,
-            muladd(F[idx_x,   idx_y+1]*(dx_particle/dx), 1 - dy_particle/dy, 
-                   F[idx_x,   idx_y  ]*(1 - dx_particle/dx) * (1 - dy_particle/dy))))
-        
+        Fp[ix] = bilinear(tx, ty,  F[idx_x, idx_y], F[idx_x+1, idx_y], F[idx_x, idx_y+1], F[idx_x+1, idx_y+1])        
     end
 
     return 
 end
 
-function scattering!(Fpd, xi, dxi, Fd::CuArray{T, 2}, particle_coords::NTuple{2, CuArray}; nt = 512) where {T}
+function scattering!(Fpd, xi, Fd::CuArray{T, 2}, particle_coords::NTuple{2, CuArray}; nt = 512) where {T}
     N = length(particle_coords[1])
     numblocks = ceil(Int, N/nt)
     CUDA.@sync begin
-        @cuda threads=nt blocks=numblocks _scattering!(Fpd, particle_coords, dxi, xi, Fd)
+        @cuda threads=nt blocks=numblocks _scattering!(Fpd, particle_coords, xi, Fd)
     end
 end
 
@@ -243,28 +261,34 @@ function _scattering!(
         # containing the particle
         idx_x, idx_y, idx_z = parent_cell((px[ix], py[ix], pz[ix]), dxi)
 
-        dx_particle = px[ix] - x[idx_x]
-        dy_particle = py[ix] - y[idx_y]
-        dz_particle = pz[ix] - z[idx_z]
-    
+        # distance from particle to lowermost-left corner of the cell 
+        tx = (px[ix] - x[idx_x])/dx
+        ty = (py[ix] - y[idx_y])/dy
+        tz = (pz[ix] - z[idx_z])/dz
+
         # Interpolate field F onto particle
-        Fp[ix] = @muladd(
-            F[idx_x,   idx_y  , idx_z  ]*(1-dx_particle*dx)*(1-dy_particle*dy)*(1-dz_particle*dz) + 
-            F[idx_x,   idx_y+1, idx_z  ]*(dx_particle*dx)*(1-dy_particle*dy)*(1-dz_particle*dz) + 
-            F[idx_x+1, idx_y  , idx_z  ]*(1-dx_particle*dx)*(dy_particle*dy)*(1-dz_particle*dz) + 
-            F[idx_x+1, idx_y+1, idx_z  ]*(dx_particle*dx)*(dy_particle*dy)*(1-dz_particle*dz) +
-            F[idx_x,   idx_y  , idx_z+1]*(1-dx_particle*dx)*(1-dy_particle*dy)*(dz_particle*dz) +  
-            F[idx_x,   idx_y+1, idx_z+1]*(dx_particle*dx)*(1-dy_particle*dy)*(dz_particle*dz) +  
-            F[idx_x+1, idx_y  , idx_z+1]*(1-dx_particle*dx)*(dy_particle*dy)*(dz_particle*dz) +  
-            F[idx_x+1, idx_y+1, idx_z+1]*(dx_particle*dx)*(dy_particle*dy)*(dz_particle*dz)
-        )
+        Fp[ix] = trilinear(
+            tx, 
+            ty, 
+            tz, 
+            F[idx_x,   idx_y,   idx_z],   # v000
+            F[idx_x+1, idx_y,   idx_z],   # v100
+            F[idx_x,   idx_y,   idx_z+1], # v001
+            F[idx_x+1, idx_y,   idx_z+1], # v101
+            F[idx_x,   idx_y+1, idx_z],   # v010
+            F[idx_x+1, idx_y+1, idx_z],   # v110
+            F[idx_x,   idx_y+1, idx_z+1], # v011
+            F[idx_x+1, idx_y+1, idx_z+1], # v111
+        ) 
         
     end
 
     return 
 end
 
-function scattering!(Fpd, xi, dxi, Fd::CuArray{T, 3}, particle_coords::NTuple{3, CuArray}; nt = 512) where {T}
+function scattering!(Fpd, xi, Fd::CuArray{T, 3}, particle_coords::NTuple{3, CuArray}; nt = 512) where {T}
+    x, y, z = xi
+    dxi = (x[2]-x[1], y[2]-y[1], z[2]-z[1])
     N = length(particle_coords[1])
     numblocks = ceil(Int, N/nt)
     CUDA.@sync begin
