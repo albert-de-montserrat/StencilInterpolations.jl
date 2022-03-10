@@ -50,7 +50,7 @@ Fpd = CUDA.zeros(Float64, length(px))
 Fd = CuArray(F)
 Fd0 = deepcopy(Fd)
 
-# scattering operation (for now just bi-linear interpolation)
+# scattering operation (tri-linear interpolation)
 scattering!(Fpd, (x, y, z), (dx, dy, dz), Fd, CuArray.(particle_coords))
 
 # gathering operation (inverse distance weighting)
