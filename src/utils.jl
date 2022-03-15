@@ -11,15 +11,14 @@ end
     return :(√($ex))
 end
 
-function isinside(px, py, x::AbstractArray{T,1}, y::AbstractArray{T,1}) where {T}
+# check whether particle is inside the grid (includes boundary)
+function isinside(px::Real, py::Real, x, y)
     xmin, xmax = extrema(x)
     ymin, ymax = extrema(y)
     @assert (xmin ≤ px ≤ xmax) && (ymin ≤ py ≤ ymax)
 end
 
-function isinside(
-    px, py, pz, x::AbstractArray{T,1}, y::AbstractArray{T,1}, z::AbstractArray{T,1}
-) where {T}
+function isinside(px::Real, py::Real, pz::Real, x, y, z)
     xmin, xmax = extrema(x)
     ymin, ymax = extrema(y)
     zmin, zmax = extrema(z)
