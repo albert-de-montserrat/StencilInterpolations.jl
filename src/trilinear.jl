@@ -18,18 +18,18 @@ function _vscattering(p::NTuple{3,A}, xi::NTuple{3,B}, F::Array{Float64,3}) wher
 
     a1 = VectorizationBase.Vec(
         (
-            F[idx_x + 1, idx_y, idx_z], # 3
-            F[idx_x + 1, idx_y + 1, idx_z], # 4
-            F[idx_x, idx_y + 1, idx_z], # 2
+            F[idx_x+1, idx_y, idx_z], # 3
+            F[idx_x+1, idx_y+1, idx_z], # 4
+            F[idx_x, idx_y+1, idx_z], # 2
             F[idx_x, idx_y, idx_z], # 1
         )...,
     )
     a2 = VectorizationBase.Vec(
         (
-            F[idx_x + 1, idx_y, idx_z + 1], # 3
-            F[idx_x + 1, idx_y + 1, idx_z + 1], # 4
-            F[idx_x, idx_y + 1, idx_z + 1], # 2
-            F[idx_x, idx_y, idx_z + 1], # 1
+            F[idx_x+1, idx_y, idx_z+1], # 3
+            F[idx_x+1, idx_y+1, idx_z+1], # 4
+            F[idx_x, idx_y+1, idx_z+1], # 2
+            F[idx_x, idx_y, idx_z+1], # 1
         )...,
     )
 
@@ -75,14 +75,14 @@ function _vscattering(p::NTuple{3,A}, xi::NTuple{3,B}, F::Array{Float32,3}) wher
 
     a = VectorizationBase.Vec(
         (
-            F[idx_x + 1, idx_y, idx_z], # 3
-            F[idx_x + 1, idx_y + 1, idx_z], # 4
-            F[idx_x, idx_y + 1, idx_z], # 2
+            F[idx_x+1, idx_y, idx_z], # 3
+            F[idx_x+1, idx_y+1, idx_z], # 4
+            F[idx_x, idx_y+1, idx_z], # 2
             F[idx_x, idx_y, idx_z], # 1
-            F[idx_x + 1, idx_y, idx_z + 1], # 3
-            F[idx_x + 1, idx_y + 1, idx_z + 1], # 4
-            F[idx_x, idx_y + 1, idx_z + 1], # 2
-            F[idx_x, idx_y, idx_z + 1], # 1
+            F[idx_x+1, idx_y, idx_z+1], # 3
+            F[idx_x+1, idx_y+1, idx_z+1], # 4
+            F[idx_x, idx_y+1, idx_z+1], # 2
+            F[idx_x, idx_y, idx_z+1], # 1
         )...,
     )
 
@@ -131,13 +131,13 @@ function _scattering(
         ty,
         tz,
         F[idx_x, idx_y, idx_z],   # v000
-        F[idx_x + 1, idx_y, idx_z],   # v100
-        F[idx_x, idx_y, idx_z + 1], # v001
-        F[idx_x + 1, idx_y, idx_z + 1], # v101
-        F[idx_x, idx_y + 1, idx_z],   # v010
-        F[idx_x + 1, idx_y + 1, idx_z],   # v110
-        F[idx_x, idx_y + 1, idx_z + 1], # v011
-        F[idx_x + 1, idx_y + 1, idx_z + 1], # v111
+        F[idx_x+1, idx_y, idx_z],   # v100
+        F[idx_x, idx_y, idx_z+1], # v001
+        F[idx_x+1, idx_y, idx_z+1], # v101
+        F[idx_x, idx_y+1, idx_z],   # v010
+        F[idx_x+1, idx_y+1, idx_z],   # v110
+        F[idx_x, idx_y+1, idx_z+1], # v011
+        F[idx_x+1, idx_y+1, idx_z+1], # v111
     )
     return Fp
 end
@@ -213,13 +213,13 @@ function _scattering!(
             ty,
             tz,
             F[idx_x, idx_y, idx_z],   # v000
-            F[idx_x + 1, idx_y, idx_z],   # v100
-            F[idx_x, idx_y, idx_z + 1], # v001
-            F[idx_x + 1, idx_y, idx_z + 1], # v101
-            F[idx_x, idx_y + 1, idx_z],   # v010
-            F[idx_x + 1, idx_y + 1, idx_z],   # v110
-            F[idx_x, idx_y + 1, idx_z + 1], # v011
-            F[idx_x + 1, idx_y + 1, idx_z + 1], # v111
+            F[idx_x+1, idx_y, idx_z],   # v100
+            F[idx_x, idx_y, idx_z+1], # v001
+            F[idx_x+1, idx_y, idx_z+1], # v101
+            F[idx_x, idx_y+1, idx_z],   # v010
+            F[idx_x+1, idx_y+1, idx_z],   # v110
+            F[idx_x, idx_y+1, idx_z+1], # v011
+            F[idx_x+1, idx_y+1, idx_z+1], # v111
         )
     end
 

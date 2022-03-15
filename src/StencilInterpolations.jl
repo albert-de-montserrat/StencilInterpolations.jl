@@ -10,6 +10,6 @@ include("bilinear.jl")
 include("trilinear.jl")
 
 export scattering, scattering!, gathering!
-export lerp, bilinear, trilinear
+export lerp, bilinear, trilinear, random_particles
 
 end # module
