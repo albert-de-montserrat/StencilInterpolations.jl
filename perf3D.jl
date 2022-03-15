@@ -1,13 +1,8 @@
-# ENV["JULIA_EXCLUSIVE"] = 1
-
 using CSV
-# using CairoMakie
 using DataFrames
 using Statistics
 using CUDA
-
-import Pkg; Pkg.activate(".")
-using StencilInterpolation
+using StencilInterpolations
 
 const viz = false
 

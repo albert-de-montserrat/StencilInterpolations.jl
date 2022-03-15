@@ -1,5 +1,7 @@
 # StencilInterpolations.jl
-
+```Julia
+import Pkg; Pkg.add("StencilInterpolations")
+```
 
 ```Julia
 # model domain
@@ -35,6 +37,8 @@ particle_coords = (px, py, pz)
 
 On CPU
 ```Julia
+using StencilInterpolations
+
 # scattering operation (tri-linear interpolation)
 Fp = scattering((x, y, z), F, particle_coords)
 
@@ -44,6 +48,9 @@ gathering!(F, Fp, (x, y, z), particle_coords)
 
 Using CUDA
 ```Julia
+using StencilInterpolations
+using CUDA
+
 # move arrays to GPU
 Fpd = CUDA.zeros(Float64, length(px))
 Fd = CuArray(F)
