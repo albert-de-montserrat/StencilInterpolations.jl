@@ -19,7 +19,12 @@ function _scattering(p::NTuple{2,A}, xi::NTuple{2,B}, F::Array{C,2}) where {A,B,
 
     # Interpolate field F onto particle
     Fp = bilinear(
-        tx, ty, F[idx_x, idx_y], F[idx_x+1, idx_y], F[idx_x, idx_y+1], F[idx_x+1, idx_y+1]
+        tx,
+        ty,
+        F[idx_x, idx_y],
+        F[idx_x + 1, idx_y],
+        F[idx_x, idx_y + 1],
+        F[idx_x + 1, idx_y + 1],
     )
 
     return Fp
@@ -65,9 +70,9 @@ function _scattering!(
             tx,
             ty,
             F[idx_x, idx_y],
-            F[idx_x+1, idx_y],
-            F[idx_x, idx_y+1],
-            F[idx_x+1, idx_y+1],
+            F[idx_x + 1, idx_y],
+            F[idx_x, idx_y + 1],
+            F[idx_x + 1, idx_y + 1],
         )
     end
 
