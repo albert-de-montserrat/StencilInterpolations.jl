@@ -1,6 +1,6 @@
 ## CPU
 
-function _grid2particle(p::NTuple, xi::NTuple, dxi::NTuple, F::Array)
+function _grid2particle(p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
     # check that the particle is inside the grid
     isinside(p, xi)
 
