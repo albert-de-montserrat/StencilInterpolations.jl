@@ -13,5 +13,6 @@ include("trilinear.jl")
 export scattering, scattering!, gathering!
 export grid2particle, grid2particle!
 export lerp, ndlinear, random_particles
+export parent_cell
 
 end # module
