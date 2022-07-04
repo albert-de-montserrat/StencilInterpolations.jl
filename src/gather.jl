@@ -214,7 +214,7 @@ function gathering!(
     nblocksx = ceil(Int, nx / 32)
     nblocksy = ceil(Int, ny / 32)
     CUDA.@sync begin
-        @cuda threads = (32, 32) blocks = (nblocksx, nblocksy, nblocksz) _gather2!(
+        @cuda threads = (32, 32) blocks = (nblocksx, nblocksy) _gather2!(
             Fd, upper, lower
         )
     end
