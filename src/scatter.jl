@@ -62,7 +62,7 @@ function _grid2particle!(
 ) where {T,A,N}
     ix = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
-    @inbounds if ix ≤ n
+    @inbounds if ix ≤ n && !any(isnan, p)
         pix = particle2tuple(p, ix)
 
         # check that the particle is inside the grid

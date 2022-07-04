@@ -149,7 +149,7 @@ function _gather1!(
     px, py = p
     x, y = xi
 
-    @inbounds if idx ≤ length(px)
+    @inbounds if idx ≤ length(px) && !any(isnan, p)
         # check that the particle is inside the grid
         # isinside(px[idx], py[idx], x, y)
 
@@ -234,7 +234,7 @@ function _gather1!(
     px, py, pz = p
     x, y, z = xi
 
-    @inbounds if idx ≤ length(px)
+    @inbounds if idx ≤ length(px) && !any(isnan, p)
         # check that the particle is inside the grid
         # isinside(px[idx], py[idx], pz[idx], x, y, z)
 
