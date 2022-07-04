@@ -2,7 +2,7 @@
 
 function _grid2particle(p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
     # check that the particle is inside the grid
-    isinside(p, xi)
+    # isinside(p, xi)
 
     # indices of lowermost-left corner of the cell 
     # containing the particle
@@ -62,7 +62,7 @@ function _grid2particle!(
         pix = particle2tuple(p, ix)
 
         # check that the particle is inside the grid
-        isinside(pix, xi)
+        # isinside(pix, xi)
 
         # indices of lowermost-left corner of the cell 
         # containing the particle

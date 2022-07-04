@@ -7,7 +7,7 @@ end
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
 
     # check that the particle is inside the grid
-    isinside(p, (x, y))
+    # isinside(p, (x, y))
 
     # indices of lowermost-left corner of   
     # the cell containing the particlex
@@ -64,7 +64,7 @@ end
 
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, z, dxi, order)
     # check that the particle is inside the grid
-    isinside(p, x, y, z)
+    # isinside(p, x, y, z)
 
     # indices of lowermost-left corner of   
     # the cell containing the particle
@@ -147,7 +147,7 @@ function _gather1!(
 
     @inbounds if idx ≤ length(px)
         # check that the particle is inside the grid
-        isinside(px[idx], py[idx], x, y)
+        # isinside(px[idx], py[idx], x, y)
 
         p_idx = (px[idx], py[idx])
 
@@ -232,7 +232,7 @@ function _gather1!(
 
     @inbounds if idx ≤ length(px)
         # check that the particle is inside the grid
-        isinside(px[idx], py[idx], pz[idx], x, y, z)
+        # isinside(px[idx], py[idx], pz[idx], x, y, z)
 
         p_idx = (px[idx], py[idx], pz[idx])
 
