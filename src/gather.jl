@@ -1,5 +1,5 @@
 function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=4) where {N,T}
-    return 1 / distance(a, b)^order
+    return one(T) / distance(a, b)^order
 end
 
 ## CPU 2D
