@@ -1,4 +1,4 @@
-function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=4) where {N,T}
+function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=2) where {N,T}
     return one(T) / distance(a, b)^order
 end
 
@@ -33,7 +33,7 @@ end
     return lower[nt][idx_x + 1, idx_y + 1] += ω[4]
 end
 
-function gathering!(F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; order=4) where {T}
+function gathering!(F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; order=2) where {T}
 
     # unpack tuples
     px, py = particle_coords
@@ -104,7 +104,7 @@ end
     return lower[nt][idx_x + 1, idx_y + 1, idx_z + 1] += ω[8]
 end
 
-function gathering!(F::Array{T,3}, Fp::Vector{T}, xi, particle_coords; order=4) where {T}
+function gathering!(F::Array{T,3}, Fp::Vector{T}, xi, particle_coords; order=2) where {T}
     # unpack tuples
     px, py, pz = particle_coords
     x, y, z = xi
@@ -229,7 +229,7 @@ function _gather1!(
     xi,
     dxi,
     p;
-    order=4,
+    order=2,
 ) where {T}
     idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
