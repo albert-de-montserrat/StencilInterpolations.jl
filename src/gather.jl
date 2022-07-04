@@ -195,6 +195,7 @@ function gathering!(
 ) where {T}
     upper = CUDA.zeros(T, size(Fd))
     lower = CUDA.zeros(T, size(Fd))
+    x, y = xi
     dxi = (x[2] - x[1], y[2] - y[1])
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
