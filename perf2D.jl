@@ -49,7 +49,7 @@ function main(nx, ny, nxcell)
     t_gather_cpu = @elapsed gathering!(F, Fp, (x, y), particle_coords)
 
     # Compute error
-    sol = [-sin(2 * zi) * cos(3 * π * xi) for (xi, zi) in zip(px, pz)]
+    sol = [-sin(2 * zi) * cos(3 * π * xi) for (xi, zi) in zip(px, py)]
     misfit_scatter = @.(log10(abs(Fp - sol)))
     misfit_gather = @.(log10(abs(F - F0)))
 
