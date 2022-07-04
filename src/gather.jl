@@ -191,7 +191,7 @@ function _gather2!(Fd::CuDeviceArray{T,2}, upper, lower) where {T}
 end
 
 function gathering!(
-    Fd::CuArray{T,2}, Fpd::CuArray{T,1}, xi, dxi, particle_coords; nt=512
+    Fd::CuArray{T,2}, Fpd::CuArray{T,1}, xi, particle_coords; nt=512
 ) where {T}
     upper = CUDA.zeros(T, size(Fd))
     lower = CUDA.zeros(T, size(Fd))
