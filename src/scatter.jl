@@ -38,11 +38,15 @@ end
 function grid2particle!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N}
     # cell dimensions
     dxi = grid_size(xi)
-
+    
     Threads.@threads for i in eachindex(particle_coords[1])
-        @inbounds Fp[i] = _grid2particle(
-            ntuple(j -> particle_coords[j][i], Val(N)), xi, dxi, F
-        )
+
+        if !any(isnan, ntuple(j -> particle_coords[j][i], Val(N)))
+            @inbounds Fp[i] = _grid2particle(
+                ntuple(j -> particle_coords[j][i], Val(N)), xi, dxi, F
+            )
+        end
+
     end
 end
 

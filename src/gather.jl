@@ -49,7 +49,9 @@ function gathering!(F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; order=4) 
 
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
-        _gathering!(upper, lower, Fp[i], (px[i], py[i]), x, y, dxi, order)
+        if !isnan(px[i]) && !isnan(py[i])
+            _gathering!(upper, lower, Fp[i], (px[i], py[i]), x, y, dxi, order)
+        end
     end
 
     # compute Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
@@ -117,7 +119,9 @@ function gathering!(F::Array{T,3}, Fp::Vector{T}, xi, particle_coords; order=4) 
 
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
-        _gathering!(upper, lower, Fp[i], (px[i], py[i], pz[i]), x, y, z, dxi, order)
+        if !isnan(px[i]) && !isnan(py[i]) && !isnan(pz[i])
+            _gathering!(upper, lower, Fp[i], (px[i], py[i], pz[i]), x, y, z, dxi, order)
+        end
     end
 
     # compute Fᵢ=∑ωᵢFpᵢ/∑ωᵢ
