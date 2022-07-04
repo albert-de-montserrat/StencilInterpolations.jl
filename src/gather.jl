@@ -7,7 +7,7 @@ end
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
 
     # check that the particle is inside the grid
-    isinside(p, x, y)
+    isinside(p, (x, y))
 
     # indices of lowermost-left corner of   
     # the cell containing the particlex
