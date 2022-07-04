@@ -6,7 +6,7 @@ end
 @generated function distance(a::NTuple{N,T}, b::NTuple{N,T}) where {N,T}
     ex = zero(T)
     @inbounds for i in 1:N
-        ex = :((a[$i] - b[$i]) * (a[$i] - b[$i]) + $ex)
+        ex = :((a[$i] - b[$i]) ^ 2 + $ex)
     end
     return :(√($ex))
 end
