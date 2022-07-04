@@ -1,4 +1,4 @@
-function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=2) where {N,T}
+@inline function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=2) where {N,T}
     return one(T) / distance(a, b)^order
 end
 
