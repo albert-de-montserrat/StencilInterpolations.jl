@@ -62,24 +62,26 @@ function _grid2particle!(
 ) where {T,A,N}
     ix = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
-    @inbounds if ix ≤ n && !any(isnan, p)
+    @inbounds if ix ≤ n 
         pix = particle2tuple(p, ix)
+        
+        if !any(isnan, pix)
+            # check that the particle is inside the grid
+            # isinside(pix, xi)
 
-        # check that the particle is inside the grid
-        # isinside(pix, xi)
+            # indices of lowermost-left corner of the cell 
+            # containing the particle
+            idx = parent_cell(pix, dxi)
 
-        # indices of lowermost-left corner of the cell 
-        # containing the particle
-        idx = parent_cell(pix, dxi)
+            # normalize particle coordinates
+            ti = normalize_coordinates(pix, xi, dxi, idx)
 
-        # normalize particle coordinates
-        ti = normalize_coordinates(pix, xi, dxi, idx)
+            # F at the cell corners
+            Fi = field_corners(F, idx)
 
-        # F at the cell corners
-        Fi = field_corners(F, idx)
-
-        # Interpolate field F onto particle
-        Fp[ix] = ndlinear(ti, Fi)
+            # Interpolate field F onto particle
+            Fp[ix] = ndlinear(ti, Fi)
+        end
     end
 
     return nothing
