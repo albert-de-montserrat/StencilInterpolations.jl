@@ -15,17 +15,22 @@ end
 @inline function isinside(px::Real, py::Real, x, y)
     xmin, xmax = extrema(x)
     ymin, ymax = extrema(y)
-    @assert (xmin ≤ px ≤ xmax) && (ymin ≤ py ≤ ymax)
+    @assert (px === NaN) || (py === NaN) (xmin ≤ px ≤ xmax) && (ymin ≤ py ≤ ymax)
 end
 
 @inline function isinside(px::Real, py::Real, pz::Real, x, y, z)
     xmin, xmax = extrema(x)
     ymin, ymax = extrema(y)
     zmin, zmax = extrema(z)
-    @assert (xmin ≤ px ≤ xmax) && (ymin ≤ py ≤ ymax) && (zmin ≤ pz ≤ zmax)
+    @assert (px === NaN) ||
+        (py === NaN) ||
+        (pz === NaN) ||
+        (xmin ≤ px ≤ xmax) && (ymin ≤ py ≤ ymax) && (zmin ≤ pz ≤ zmax)
 end
 
-@inline isinside(p::NTuple{2,T1}, x::NTuple{2,T2}) where {T1,T2} = isinside(p[1], p[2], x[1], x[2])
+@inline function isinside(p::NTuple{2,T1}, x::NTuple{2,T2}) where {T1,T2}
+    return isinside(p[1], p[2], x[1], x[2])
+end
 
 @inline function isinside(p::NTuple{3,T1}, x::NTuple{3,T2}) where {T1,T2}
     return isinside(p[1], p[2], p[3], x[1], x[2], x[3])
@@ -65,7 +70,9 @@ end
     )
 end
 
-@inline particle2tuple(p::NTuple{N,AbstractArray}, ix) where {N} = ntuple(i -> p[i][ix], Val(N))
+@inline function particle2tuple(p::NTuple{N,AbstractArray}, ix) where {N}
+    return ntuple(i -> p[i][ix], Val(N))
+end
 
 # 2D random particle generator for regular grids
 function random_particles(nxcell, x, y, dx, dy, nx, ny)

@@ -46,7 +46,6 @@ function grid2particle!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N}
     end
 end
 
-
 ## CUDA
 
 function _grid2particle!(
@@ -57,7 +56,6 @@ function _grid2particle!(
     F::CuDeviceArray{T,N},
     n::Integer,
 ) where {T,A,N}
-
     ix = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
     @inbounds if ix ≤ n
