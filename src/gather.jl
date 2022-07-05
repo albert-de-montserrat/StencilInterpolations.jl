@@ -141,7 +141,7 @@ function _gather1!(
     xi,
     dxi,
     p;
-    order=4,
+    order=2,
 ) where {T}
     idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
@@ -185,7 +185,7 @@ function _gather2!(Fd::CuDeviceArray{T,2}, upper, lower) where {T}
     idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     idy = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-    if (idx < size(Fd, 1)) && (idy < size(Fd, 2))
+    if (idx ≤ size(Fd, 1)) && (idy ≤ size(Fd, 2))
         @inbounds Fd[idx, idy] = upper[idx, idy] / lower[idx, idy]
     end
 
