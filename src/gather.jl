@@ -2,6 +2,17 @@
     return one(T) / distance(a, b)^order
 end
 
+# CPU 
+
+function gathering!(
+    Fd::Array{T,N}, Fpd::Array{T,1}, xi, particle_coords; nt=512
+) where {T,N}
+    upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
+    lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
+
+    return gathering!(Fd, Fpd, xi, particle_coords, upper, lower; nt=nt)
+end
+
 ## CPU 2D
 
 @inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
@@ -34,13 +45,7 @@ end
 end
 
 function gathering!(
-    F::Array{T,2},
-    Fp::Vector{T},
-    xi,
-    particle_coords;
-    order=2,
-    upper=[zeros(size(F)) for _ in 1:Threads.nthreads()],
-    lower=[zeros(size(F)) for _ in 1:Threads.nthreads()],
+    F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; upper, lower, order=2
 ) where {T}
     fill!(upper, zero(T))
     fill!(lower, zero(T))
@@ -111,13 +116,7 @@ end
 end
 
 function gathering!(
-    F::Array{T,3},
-    Fp::Vector{T},
-    xi,
-    particle_coords;
-    order=2,
-    upper=[zeros(size(F)) for _ in 1:Threads.nthreads()],
-    lower=[zeros(size(F)) for _ in 1:Threads.nthreads()],
+    F::Array{T,3}, Fp::Vector{T}, xi, upper, lower, particle_coords; order=2
 ) where {T}
     fill!(upper, zero(T))
     fill!(lower, zero(T))
@@ -147,6 +146,17 @@ function gathering!(
             sum(upper[nt][i] for nt in 1:Threads.nthreads()) /
             sum(lower[nt][i] for nt in 1:Threads.nthreads())
     end
+end
+
+# CUDA 
+
+function gathering!(
+    Fd::CuArray{T,N}, Fpd::CuArray{T,1}, xi, particle_coords; nt=512
+) where {T,N}
+    upper = CUDA.zeros(T, size(Fd))
+    lower = CUDA.zeros(T, size(Fd))
+
+    return gathering!(Fd, Fpd, xi, particle_coords, upper, lower; nt=nt)
 end
 
 ## CUDA 2D
@@ -210,16 +220,8 @@ function _gather2!(Fd::CuDeviceArray{T,2}, upper, lower) where {T}
 end
 
 function gathering!(
-    Fd::CuArray{T,2},
-    Fpd::CuArray{T,1},
-    xi,
-    particle_coords;
-    nt=512,
-    upper=CUDA.zeros(T, size(Fd)),
-    lower=CUDA.zeros(T, size(Fd)),
+    Fd::CuArray{T,2}, Fpd::CuArray{T,1}, xi, particle_coords; upper, lower, nt=512
 ) where {T}
-    # upper = CUDA.zeros(T, size(Fd))
-    # lower = CUDA.zeros(T, size(Fd))
     fill!(upper, zero(T))
     fill!(lower, zero(T))
 
@@ -336,13 +338,7 @@ function _gather2!(
 end
 
 function gathering!(
-    Fd::CuArray{T,3},
-    Fpd::CuArray{T,1},
-    xi,
-    particle_coords;
-    nt=512,
-    upper=CUDA.zeros(T, size(Fd)),
-    lower=CUDA.zeros(T, size(Fd)),
+    Fd::CuArray{T,3}, Fpd::CuArray{T,1}, xi, particle_coords, upper, lower; nt=512
 ) where {T}
     fill!(upper, zero(T))
     fill!(lower, zero(T))
