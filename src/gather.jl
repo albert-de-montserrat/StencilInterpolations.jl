@@ -45,7 +45,7 @@ end
 end
 
 function gathering!(
-    F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; upper, lower, order=2
+    F::Array{T,2}, Fp::Vector{T}, xi, particle_coords, upper, lower; order=2
 ) where {T}
     fill!(upper, zero(T))
     fill!(lower, zero(T))
@@ -116,7 +116,7 @@ end
 end
 
 function gathering!(
-    F::Array{T,3}, Fp::Vector{T}, xi, upper, lower, particle_coords; order=2
+    F::Array{T,3}, Fp::Vector{T}, xi, particle_coords, upper, lower; order=2
 ) where {T}
     fill!(upper, zero(T))
     fill!(lower, zero(T))
@@ -220,7 +220,7 @@ function _gather2!(Fd::CuDeviceArray{T,2}, upper, lower) where {T}
 end
 
 function gathering!(
-    Fd::CuArray{T,2}, Fpd::CuArray{T,1}, xi, particle_coords; upper, lower, nt=512
+    Fd::CuArray{T,2}, Fpd::CuArray{T,1}, xi, particle_coords, upper, lower; nt=512
 ) where {T}
     fill!(upper, zero(T))
     fill!(lower, zero(T))
