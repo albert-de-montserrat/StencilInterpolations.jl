@@ -33,7 +33,17 @@ end
     return lower[nt][idx_x + 1, idx_y + 1] += ω[4]
 end
 
-function gathering!(F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; order=2) where {T}
+function gathering!(
+    F::Array{T,2},
+    Fp::Vector{T},
+    xi,
+    particle_coords;
+    order=2,
+    upper=[zeros(size(F)) for _ in 1:Threads.nthreads()],
+    lower=[zeros(size(F)) for _ in 1:Threads.nthreads()],
+) where {T}
+    fill!(upper, zero(T))
+    fill!(lower, zero(T))
 
     # unpack tuples
     px, py = particle_coords
@@ -42,10 +52,6 @@ function gathering!(F::Array{T,2}, Fp::Vector{T}, xi, particle_coords; order=2) 
 
     # number of particles
     np = length(Fp)
-
-    # TODO think about pre-allocating these 2 buffers
-    upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
-    lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
 
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
@@ -104,7 +110,18 @@ end
     return lower[nt][idx_x + 1, idx_y + 1, idx_z + 1] += ω[8]
 end
 
-function gathering!(F::Array{T,3}, Fp::Vector{T}, xi, particle_coords; order=2) where {T}
+function gathering!(
+    F::Array{T,3},
+    Fp::Vector{T},
+    xi,
+    particle_coords;
+    order=2,
+    upper=[zeros(size(F)) for _ in 1:Threads.nthreads()],
+    lower=[zeros(size(F)) for _ in 1:Threads.nthreads()],
+) where {T}
+    fill!(upper, zero(T))
+    fill!(lower, zero(T))
+
     # unpack tuples
     px, py, pz = particle_coords
     x, y, z = xi
@@ -114,8 +131,8 @@ function gathering!(F::Array{T,3}, Fp::Vector{T}, xi, particle_coords; order=2) 
     np = length(Fp)
 
     # TODO think about pre-allocating these 2 buffers
-    upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
-    lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
+    # upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
+    # lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
 
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
@@ -193,10 +210,19 @@ function _gather2!(Fd::CuDeviceArray{T,2}, upper, lower) where {T}
 end
 
 function gathering!(
-    Fd::CuArray{T,2}, Fpd::CuArray{T,1}, xi, particle_coords; nt=512
+    Fd::CuArray{T,2},
+    Fpd::CuArray{T,1},
+    xi,
+    particle_coords;
+    nt=512,
+    upper=CUDA.zeros(T, size(Fd)),
+    lower=CUDA.zeros(T, size(Fd)),
 ) where {T}
-    upper = CUDA.zeros(T, size(Fd))
-    lower = CUDA.zeros(T, size(Fd))
+    # upper = CUDA.zeros(T, size(Fd))
+    # lower = CUDA.zeros(T, size(Fd))
+    fill!(upper, zero(T))
+    fill!(lower, zero(T))
+
     x, y = xi
     dxi = (x[2] - x[1], y[2] - y[1])
 
@@ -214,9 +240,7 @@ function gathering!(
     nblocksx = ceil(Int, nx / 32)
     nblocksy = ceil(Int, ny / 32)
     CUDA.@sync begin
-        @cuda threads = (32, 32) blocks = (nblocksx, nblocksy) _gather2!(
-            Fd, upper, lower
-        )
+        @cuda threads = (32, 32) blocks = (nblocksx, nblocksy) _gather2!(Fd, upper, lower)
     end
 end
 
@@ -248,7 +272,9 @@ function _gather1!(
             # the cell containing the particle
             idx_x, idx_y, idx_z = parent_cell(p_idx, dxi)
 
-            ω1::Float64 = distance_weigth((x[idx_x], y[idx_y], z[idx_z]), p_idx; order=order)
+            ω1::Float64 = distance_weigth(
+                (x[idx_x], y[idx_y], z[idx_z]), p_idx; order=order
+            )
             ω2::Float64 = distance_weigth(
                 (x[idx_x + 1], y[idx_y], z[idx_z]), p_idx; order=order
             )
@@ -310,12 +336,19 @@ function _gather2!(
 end
 
 function gathering!(
-    Fd::CuArray{T,3}, Fpd::CuArray{T,1}, xi, particle_coords; nt=512
+    Fd::CuArray{T,3},
+    Fpd::CuArray{T,1},
+    xi,
+    particle_coords;
+    nt=512,
+    upper=CUDA.zeros(T, size(Fd)),
+    lower=CUDA.zeros(T, size(Fd)),
 ) where {T}
+    fill!(upper, zero(T))
+    fill!(lower, zero(T))
+
     x, y, z = xi
     dxi = (x[2] - x[1], y[2] - y[1], z[2] - z[1])
-    upper = CUDA.zeros(T, size(Fd))
-    lower = CUDA.zeros(T, size(Fd))
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
     N = length(Fpd)

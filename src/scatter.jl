@@ -38,15 +38,13 @@ end
 function grid2particle!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N}
     # cell dimensions
     dxi = grid_size(xi)
-    
-    Threads.@threads for i in eachindex(particle_coords[1])
 
+    Threads.@threads for i in eachindex(particle_coords[1])
         if !any(isnan, ntuple(j -> particle_coords[j][i], Val(N)))
             @inbounds Fp[i] = _grid2particle(
                 ntuple(j -> particle_coords[j][i], Val(N)), xi, dxi, F
             )
         end
-
     end
 end
 
@@ -62,9 +60,9 @@ function _grid2particle!(
 ) where {T,A,N}
     ix = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
-    @inbounds if ix ≤ n 
+    @inbounds if ix ≤ n
         pix = particle2tuple(p, ix)
-        
+
         if !any(isnan, pix)
             # check that the particle is inside the grid
             # isinside(pix, xi)
