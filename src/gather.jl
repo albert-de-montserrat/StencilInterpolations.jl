@@ -5,12 +5,12 @@ end
 # CPU 
 
 function gathering!(
-    Fd::Array{T,N}, Fpd::Array{T,1}, xi, particle_coords; nt=512
+    F::Array{T,N}, Fp::Array{T,1}, xi, particle_coords
 ) where {T,N}
     upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
     lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
 
-    return gathering!(Fd, Fpd, xi, particle_coords, upper, lower; nt=nt)
+    return gathering!(F, Fp, xi, particle_coords, upper, lower)
 end
 
 ## CPU 2D
@@ -47,8 +47,9 @@ end
 function gathering!(
     F::Array{T,2}, Fp::Vector{T}, xi, particle_coords, upper, lower; order=2
 ) where {T}
-    fill!(upper, zero(T))
-    fill!(lower, zero(T))
+
+    fill!.(upper, zero(T))
+    fill!.(lower, zero(T))
 
     # unpack tuples
     px, py = particle_coords

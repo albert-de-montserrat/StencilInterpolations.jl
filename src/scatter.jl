@@ -58,11 +58,11 @@ function _grid2particle!(
     Fp::CuDeviceVector{T,1},
     p::NTuple{N,CuDeviceVector{T,1}},
     dxi::NTuple{N,T},
-    xci::NTuple{N,A},
+    xci::NTuple{N,B},
     xi::NTuple{N,A},
     F::CuDeviceArray{T,N},
     n::Integer,
-) where {T,A,N}
+) where {T,A,B,N}
     ix = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
     @inbounds if ix ≤ n
