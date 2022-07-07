@@ -1,12 +1,12 @@
 ## CPU
 
-function _grid2particle(p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
+function _grid2particle(p::NTuple, xci::Tuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
     # check that the particle is inside the grid
     # isinside(p, xi)
 
     # indices of lowermost-left corner of the cell 
     # containing the particle
-    idx = parent_cell(p, dxi)
+    idx = parent_cell(p, dxi, xci)
 
     # normalize particle coordinates
     ti = normalize_coordinates(p, xi, dxi, idx)
@@ -26,9 +26,12 @@ function grid2particle(xi, F::Array{T,N}, particle_coords) where {T,N}
     # cell dimensions
     dxi = grid_size(xi)
 
+    # origin of the domain 
+    xci = minimum.(xi)
+    
     Threads.@threads for i in eachindex(particle_coords[1])
         @inbounds Fp[i] = _grid2particle(
-            ntuple(j -> particle_coords[j][i], Val(N)), xi, dxi, F
+            ntuple(j -> particle_coords[j][i], Val(N)), xci, xi, dxi, F
         )
     end
 
@@ -38,11 +41,12 @@ end
 function grid2particle!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N}
     # cell dimensions
     dxi = grid_size(xi)
-
+    # origin of the domain 
+    xci = minimum.(xi)
     Threads.@threads for i in eachindex(particle_coords[1])
         if !any(isnan, ntuple(j -> particle_coords[j][i], Val(N)))
             @inbounds Fp[i] = _grid2particle(
-                ntuple(j -> particle_coords[j][i], Val(N)), xi, dxi, F
+                ntuple(j -> particle_coords[j][i], Val(N)), xci, xi, dxi, F
             )
         end
     end
@@ -54,6 +58,7 @@ function _grid2particle!(
     Fp::CuDeviceVector{T,1},
     p::NTuple{N,CuDeviceVector{T,1}},
     dxi::NTuple{N,T},
+    xci::NTuple{N,A}
     xi::NTuple{N,A},
     F::CuDeviceArray{T,N},
     n::Integer,
@@ -69,7 +74,7 @@ function _grid2particle!(
 
             # indices of lowermost-left corner of the cell 
             # containing the particle
-            idx = parent_cell(pix, dxi)
+            idx = parent_cell(pix, dxi, xci)
 
             # normalize particle coordinates
             ti = normalize_coordinates(pix, xi, dxi, idx)
@@ -91,11 +96,12 @@ function grid2particle(
     dxi = grid_size(xi)
     n = length(particle_coords[1])
     Fpd = CuArray{T,1}(undef, n)
-
+    # origin of the domain 
+    xci = minimum.(xi)
     numblocks = ceil(Int, n / nt)
     CUDA.@sync begin
         @cuda threads = nt blocks = numblocks _grid2particle!(
-            Fpd, particle_coords, dxi, xi, Fd, n
+            Fpd, particle_coords, dxi, xci, xi, Fd, n
         )
     end
 
@@ -107,11 +113,12 @@ function grid2particle!(
 ) where {T,N}
     dxi = grid_size(xi)
     n = length(particle_coords[1])
-
+    # origin of the domain 
+    xci = minimum.(xi)
     numblocks = ceil(Int, n / nt)
     CUDA.@sync begin
         @cuda threads = nt blocks = numblocks _grid2particle!(
-            Fpd, particle_coords, dxi, xi, Fd, n
+            Fpd, particle_coords, dxi, xci, xi, Fd, n
         )
     end
 end

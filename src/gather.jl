@@ -15,14 +15,14 @@ end
 
 ## CPU 2D
 
-@inbounds function _gathering!(upper, lower, Fpi, p, x, y, dxi, order)
+@inbounds function _gathering!(upper, lower, Fpi, p, xci, x, y, dxi, order)
 
     # check that the particle is inside the grid
     # isinside(p, (x, y))
 
     # indices of lowermost-left corner of   
     # the cell containing the particlex
-    idx_x, idx_y = parent_cell(p, dxi)
+    idx_x, idx_y = parent_cell(p, dxi, xci)
 
     ω = (
         distance_weigth((x[idx_x], y[idx_y]), p; order=order),
@@ -57,11 +57,13 @@ function gathering!(
 
     # number of particles
     np = length(Fp)
+    # origin of the domain 
+    xci = minimum.(xi)
 
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
         if !isnan(px[i]) && !isnan(py[i])
-            _gathering!(upper, lower, Fp[i], (px[i], py[i]), x, y, dxi, order)
+            _gathering!(upper, lower, Fp[i], (px[i], py[i]), xci, x, y, dxi, order)
         end
     end
 
@@ -75,13 +77,13 @@ end
 
 ## CPU 3D
 
-@inbounds function _gathering!(upper, lower, Fpi, p, x, y, z, dxi, order)
+@inbounds function _gathering!(upper, lower, Fpi, p, xci, x, y, z, dxi, order)
     # check that the particle is inside the grid
     # isinside(p, x, y, z)
 
     # indices of lowermost-left corner of   
     # the cell containing the particle
-    idx_x, idx_y, idx_z = parent_cell(p, dxi)
+    idx_x, idx_y, idx_z = parent_cell(p, dxi, xci)
 
     ω = (
         distance_weigth((x[idx_x], y[idx_y], z[idx_z]), p; order=order),
@@ -129,14 +131,13 @@ function gathering!(
     # number of particles
     np = length(Fp)
 
-    # TODO think about pre-allocating these 2 buffers
-    # upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
-    # lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
-
+    # origin of the domain 
+    xci = minimum.(xi)
+    
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
         if !isnan(px[i]) && !isnan(py[i]) && !isnan(pz[i])
-            _gathering!(upper, lower, Fp[i], (px[i], py[i], pz[i]), x, y, z, dxi, order)
+            _gathering!(upper, lower, Fp[i], (px[i], py[i], pz[i]), xci, x, y, z, dxi, order)
         end
     end
 
@@ -165,6 +166,7 @@ function _gather1!(
     upper::CuDeviceMatrix{T,1},
     lower::CuDeviceMatrix{T,1},
     Fpd::CuDeviceVector{T,1},
+    xci,
     xi,
     dxi,
     p;
@@ -185,7 +187,7 @@ function _gather1!(
         if !any(isnan, p_idx)
             # indices of lowermost-left corner of
             # the cell containing the particle
-            idx_x, idx_y = parent_cell(p_idx, dxi)
+            idx_x, idx_y = parent_cell(p_idx, dxi, xci)
 
             ω1::Float64 = distance_weigth((x[idx_x], y[idx_y]), p_idx; order=order)
             ω2::Float64 = distance_weigth((x[idx_x + 1], y[idx_y]), p_idx; order=order)
@@ -227,13 +229,15 @@ function gathering!(
 
     x, y = xi
     dxi = (x[2] - x[1], y[2] - y[1])
+    # origin of the domain 
+    xci = minimum.(xi)
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
     N = length(Fpd)
     numblocks = ceil(Int, N / nt)
     CUDA.@sync begin
         @cuda threads = nt blocks = numblocks _gather1!(
-            upper, lower, Fpd, xi, dxi, particle_coords
+            upper, lower, Fpd, xci, xi, dxi, particle_coords
         )
     end
 
@@ -252,6 +256,7 @@ function _gather1!(
     upper::CuDeviceArray{T,3},
     lower::CuDeviceArray{T,3},
     Fpd::CuDeviceVector{T,1},
+    xci,
     xi,
     dxi,
     p;
@@ -272,7 +277,7 @@ function _gather1!(
         if !any(isnan, p_idx)
             # indices of lowermost-left corner of
             # the cell containing the particle
-            idx_x, idx_y, idx_z = parent_cell(p_idx, dxi)
+            idx_x, idx_y, idx_z = parent_cell(p_idx, dxi, xci)
 
             ω1::Float64 = distance_weigth(
                 (x[idx_x], y[idx_y], z[idx_z]), p_idx; order=order
@@ -345,13 +350,15 @@ function gathering!(
 
     x, y, z = xi
     dxi = (x[2] - x[1], y[2] - y[1], z[2] - z[1])
-
+    # origin of the domain 
+    xci = minimum.(xi)
+    
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
     N = length(Fpd)
     numblocks = ceil(Int, N / nt)
     CUDA.@sync begin
         @cuda threads = nt blocks = numblocks _gather1!(
-            upper, lower, Fpd, xi, dxi, particle_coords
+            upper, lower, Fpd, xci, xi, dxi, particle_coords
         )
     end
 
