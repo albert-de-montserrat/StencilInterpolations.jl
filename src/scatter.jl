@@ -58,7 +58,7 @@ function _grid2particle!(
     Fp::CuDeviceVector{T,1},
     p::NTuple{N,CuDeviceVector{T,1}},
     dxi::NTuple{N,T},
-    xci::NTuple{N,A}
+    xci::NTuple{N,A},
     xi::NTuple{N,A},
     F::CuDeviceArray{T,N},
     n::Integer,
