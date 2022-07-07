@@ -1,5 +1,5 @@
 @inline function parent_cell(p::NTuple{N,A}, dxi::NTuple{N,B}, xci::NTuple{N,B}) where {N,A,B}
-    return ntuple(i -> Int(p[i] - xci[i] ÷ dxi[i] + 1), Val(N))
+    return ntuple(i -> Int((p[i] - xci[i]) ÷ dxi[i] + 1), Val(N))
 end
 
 # dimension-agnostic fully unrolled euclidean distance
