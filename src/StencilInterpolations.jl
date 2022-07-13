@@ -11,7 +11,7 @@ include("kernels.jl")
 # include("trilinear.jl")
 
 export scattering, scattering!, gathering!
-export grid2particle, grid2particle!
+export grid2particle, grid2particle!, grid2particle_xcell!, gathering_xcell!
 export lerp, ndlinear, random_particles
 export parent_cell
 

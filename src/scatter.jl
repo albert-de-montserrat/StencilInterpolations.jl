@@ -53,20 +53,23 @@ function grid2particle!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N}
 end
 
 
-function grid2particle_xcell!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N}
+function grid2particle_xcell!(Fp, xi, F::Array{T,N}, particle_coords, max_xcell) where {T,N}
     # cell dimensions
     dxi = grid_size(xi)
     # origin of the domain 
     # xci = minimum.(xi)
     nx, ny = length.(xi)
-    for jcell in 1:ny-1, icell in 1:nx-1
-        @inbounds Fp[i] = _grid2particle_xcell!(
-            particle_coords, xi, dxi, F, icell, jcell
-        )
+    # Threads.@threads 
+    for jcell in 1:ny-1
+        for icell in 1:nx-1
+            _grid2particle_xcell!(
+                Fp, particle_coords, xi, dxi, F, max_xcell, icell, jcell
+            )
+        end
     end
 end
 
-function _grid2particle_xcell!(p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell)
+function _grid2particle_xcell!(Fp, p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, icell, jcell)
 
     idx = (icell, jcell)
     for i in 1:max_xcell
@@ -78,18 +81,21 @@ function _grid2particle_xcell!(p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractAr
         # idx = parent_cell(p, dxi, xci)
         px_i = p[1][i, icell, jcell]
         py_i = p[2][i, icell, jcell]
-        p = (px_i, py_i)
 
-        !any(isnan, p) && continue
+        p_i = (px_i, py_i)
+
+        any(isnan, p_i) && continue
 
         # normalize particle coordinates
-        ti = normalize_coordinates(p, xi, dxi, idx)
+        ti = normalize_coordinates(p_i, xi, dxi, idx)
 
         # F at the cell corners
         Fi = field_corners(F, idx)
 
         # Interpolate field F onto particle
         Fp[i, icell, jcell] = ndlinear(ti, Fi)
+
+        isnan(Fp[i, icell, jcell]) && @show ti, p_i, xi, dxi, idx
     end
 end
 

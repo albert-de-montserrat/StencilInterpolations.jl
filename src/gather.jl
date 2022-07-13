@@ -76,6 +76,42 @@ function gathering!(
     end
 end
 
+
+@inbounds function _gathering_xcell!(F, Fp, inode, jnode, xi, p, order)
+    px, py = p
+    x, y = xi
+    ω = 0.0
+    ω_F = 0.0
+    max_xcell = size(px, 1)
+    c = 0
+    for offset_i = 0:1, offset_j = 0:1
+        for i in 1:max_xcell
+            c+=1
+            icell, jcell = inode+offset_i, jnode+offset_j
+            p_i = (px[i, icell, jcell], py[i, icell, jcell])
+            any(isnan, p_i) && continue
+            ω_i  = distance_weigth((x[icell], y[jcell]), p_i; order=order)
+            ω   += ω_i
+            ω_F += ω_i*Fp[i, icell, jcell]
+        end
+    end
+
+    F[inode, jnode] = ω_F/ω
+end
+
+function gathering_xcell!(
+    F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords; order=2
+) where {T}
+
+    nx,ny = length.(xi)
+    for jnode in 1:ny-1
+        for inode in 1:nx-1
+            _gathering_xcell!(F, Fp, inode, jnode, xi, particle_coords, order)
+        end
+    end
+
+end
+
 ## CPU 3D
 
 @inbounds function _gathering!(upper, lower, Fpi, p, xci, x, y, z, dxi, order)
