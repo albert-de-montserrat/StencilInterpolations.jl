@@ -20,6 +20,21 @@ function _grid2particle(p::NTuple, xci::Tuple, xi::NTuple, dxi::NTuple, F::Abstr
     return Fp
 end
 
+function _grid2particle_xcell_centered(p_i::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell)
+   
+    # cell indices
+    idx = (icell, jcell)
+    # normalize particle coordinates
+    ti = normalize_coordinates(p_i, xi, dxi, idx)
+    # F at the cell corners
+    Fi = field_centers(F, p_i, xi, idx)
+    # Interpolate field F onto particle
+    Fp = ndlinear(ti, Fi)
+
+    return Fp
+end
+
+
 function grid2particle(xi, F::Array{T,N}, particle_coords) where {T,N}
     Fp = zeros(T, np)
 
@@ -60,8 +75,8 @@ function grid2particle_xcell!(Fp, xi, F::Array{T,N}, particle_coords, max_xcell)
     # xci = minimum.(xi)
     nx, ny = length.(xi)
     # Threads.@threads 
-    for jcell in 1:ny-1
-        for icell in 1:nx-1
+    for jcell in 1:ny
+        for icell in 1:nx
             _grid2particle_xcell!(
                 Fp, particle_coords, xi, dxi, F, max_xcell, icell, jcell
             )
@@ -70,15 +85,25 @@ function grid2particle_xcell!(Fp, xi, F::Array{T,N}, particle_coords, max_xcell)
 end
 
 function _grid2particle_xcell!(Fp, p::NTuple, xi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, icell, jcell)
-
     idx = (icell, jcell)
+    # dx_2, dy_2 = 0.5.*dxi
+    # xlo, xhi = extrema(xi[1])
+    # ylo, yhi = extrema(xi[1])
+    # xi .-= dxi
+    # function correct_pxy(px_i, py_i)
+    #     px_i = px_i > xlo ? px_i : px_i + dx_2 
+    #     px_i = px_i < xhi ? px_i : px_i - dx_2 
+    #     py_i = py_i > ylo ? py_i : py_i + dy_2 
+    #     py_i = py_i < yhi ? py_i : py_i - dy_2 
+    #     return px_i, py_i
+    # end
+
     for i in 1:max_xcell
         # check that the particle is inside the grid
         # isinside(p, xi)
 
         # indices of lowermost-left corner of the cell 
         # containing the particle
-        # idx = parent_cell(p, dxi, xci)
         px_i = p[1][i, icell, jcell]
         py_i = p[2][i, icell, jcell]
 
@@ -90,12 +115,12 @@ function _grid2particle_xcell!(Fp, p::NTuple, xi::NTuple, dxi::NTuple, F::Abstra
         ti = normalize_coordinates(p_i, xi, dxi, idx)
 
         # F at the cell corners
-        Fi = field_corners(F, idx)
+        Fi = field_centers(F, p_i, xi, idx)
 
         # Interpolate field F onto particle
         Fp[i, icell, jcell] = ndlinear(ti, Fi)
 
-        isnan(Fp[i, icell, jcell]) && @show ti, p_i, xi, dxi, idx
+        # isnan(Fp[i, icell, jcell]) && @show ti, Fi, p_i, xi, dxi, idx
     end
 end
 

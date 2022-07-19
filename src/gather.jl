@@ -1,5 +1,5 @@
 @inline function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=2) where {N,T}
-    return one(T) / distance(a, b)^order
+    return inv(distance(a, b)^order)
 end
 
 # CPU 
@@ -77,36 +77,67 @@ function gathering!(
 end
 
 
-@inbounds function _gathering_xcell!(F, Fp, inode, jnode, xi, p, order)
-    px, py = p
-    x, y = xi
-    ω = 0.0
-    ω_F = 0.0
-    max_xcell = size(px, 1)
-    c = 0
-    for offset_i = 0:1, offset_j = 0:1
-        for i in 1:max_xcell
-            c+=1
-            icell, jcell = inode+offset_i, jnode+offset_j
-            p_i = (px[i, icell, jcell], py[i, icell, jcell])
-            any(isnan, p_i) && continue
-            ω_i  = distance_weigth((x[icell], y[jcell]), p_i; order=order)
-            ω   += ω_i
-            ω_F += ω_i*Fp[i, icell, jcell]
-        end
+# @inbounds function _gathering_xcell!(F, Fp, inode, jnode, xi, p, order)
+#     px, py = p
+#     x, y = xi
+#     ω = 0.0
+#     ω_F = 0.0
+#     max_xcell = size(px, 1)
+#     c = 0
+#     for offset_i = 0:1, offset_j = 0:1
+#         for i in 1:max_xcell
+#             c+=1
+#             icell, jcell = inode+offset_i, jnode+offset_j
+#             p_i = (px[i, icell, jcell], py[i, icell, jcell])
+#             any(isnan, p_i) && continue
+#             ω_i  = distance_weigth((x[icell], y[jcell]), p_i; order=order)
+#             ω   += ω_i
+#             ω_F += ω_i*Fp[i, icell, jcell]
+#         end
+#     end
+
+#     F[inode, jnode] = ω_F/ω
+# end
+
+# function gathering_xcell!(
+#     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords; order=2
+# ) where {T}
+
+#     nx, ny = size(F)
+#     for jnode in 1:ny-1
+#         for inode in 1:nx-1
+#             _gathering_xcell!(F, Fp, inode, jnode, xi, particle_coords, order)
+#         end
+#     end
+
+# end
+
+
+@inbounds function _gathering_xcell!(F, Fp, icell, jcell, xi, p, order)
+    px, py = p # particle coordinates
+    xc_cell = (xi[1][icell], xi[2][jcell]) # cell center coordinates
+    ω, ωxF = 0.0, 0.0 # init weights
+    max_xcell = size(px, 1) # max particles per cell
+    
+    for i in 1:max_xcell
+        p_i = (px[i, icell, jcell], py[i, icell, jcell])
+        any(isnan, p_i) && continue # ignore unused allocations
+        ω_i  = distance_weigth(xc_cell, p_i; order=order)
+        ω   += ω_i
+        ωxF += ω_i*Fp[i, icell, jcell]
     end
 
-    F[inode, jnode] = ω_F/ω
+    F[icell+1, jcell+1] = ωxF/ω
 end
 
 function gathering_xcell!(
     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords; order=2
 ) where {T}
 
-    nx,ny = length.(xi)
-    for jnode in 1:ny-1
-        for inode in 1:nx-1
-            _gathering_xcell!(F, Fp, inode, jnode, xi, particle_coords, order)
+    nx, ny = size(F)
+    for jcell in 1:ny-2
+        for icell in 1:nx-2
+            _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, order)
         end
     end
 

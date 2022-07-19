@@ -70,6 +70,39 @@ end
     )
 end
 
+# Get field F at the centers of a given cell
+@inline function field_centers(F::AbstractArray{T,2}, pxi, xi, idx::NTuple{2,Integer}) where {T}
+    idx_x, idx_y = idx
+    px, py = pxi
+    x, y = xi[1][idx_x], xi[2][idx_x]
+    idx_x = (px - x) > 0 ? idx_x + 1 : idx_x
+    idx_y = (py - y) > 0 ? idx_y + 1 : idx_y 
+
+    return (
+        F[idx_x, idx_y], F[idx_x + 1, idx_y], F[idx_x, idx_y + 1], F[idx_x + 1, idx_y + 1]
+    )
+end
+
+@inline function field_centers(F::AbstractArray{T,3}, pxi, xi, idx::NTuple{3,Integer}) where {T}
+    idx_x, idx_y, idx_z = idx
+    px, py, pz = pxi
+    x, y, z = xi[1][idx_x], xi[2][idx_x], xi[3][idx_x]
+    idx_x = (px - x) > 0 ? idx_x + 1 : idx_x
+    idx_y = (py - y) > 0 ? idx_y + 1 : idx_y
+    idx_z = (pz - z) > 0 ? idx_z + 1 : idx_z
+
+    return (
+        F[idx_x, idx_y, idx_z],   # v000
+        F[idx_x + 1, idx_y, idx_z],   # v100
+        F[idx_x, idx_y, idx_z + 1], # v001
+        F[idx_x + 1, idx_y, idx_z + 1], # v101
+        F[idx_x, idx_y + 1, idx_z],   # v010
+        F[idx_x + 1, idx_y + 1, idx_z],   # v110
+        F[idx_x, idx_y + 1, idx_z + 1], # v011
+        F[idx_x + 1, idx_y + 1, idx_z + 1], # v111
+    )
+end
+
 @inline function particle2tuple(p::NTuple{N,AbstractArray}, ix) where {N}
     return ntuple(i -> p[i][ix], Val(N))
 end
