@@ -1,5 +1,13 @@
-@inline function distance_weigth(a::NTuple{N,T}, b::NTuple{N,T}; order=2) where {N,T}
+@inline function distance_weight(a::NTuple{N,T}, b::NTuple{N,T}; order=2) where {N,T}
     return inv(distance(a, b)^order)
+end
+
+@inline @generated function bilinear_weight(a::NTuple{N,T}, b::NTuple{N,T}, dxi::NTuple{N,T}) where {N,T}
+    quote
+        val = one(T)
+        Base.Cartesian.@nexprs $N i -> one(T) - abs(a[i]-b[i])/dxi[i]
+        return val
+    end
 end
 
 # CPU 
@@ -24,11 +32,18 @@ end
     # the cell containing the particlex
     idx_x, idx_y = parent_cell(p, dxi, xci)
 
+    # ω = (
+    #     distance_weight((x[idx_x], y[idx_y]), p; order=order),
+    #     distance_weight((x[idx_x + 1], y[idx_y]), p; order=order),
+    #     distance_weight((x[idx_x], y[idx_y + 1]), p; order=order),
+    #     distance_weight((x[idx_x + 1], y[idx_y + 1]), p; order=order),
+    # )
+
     ω = (
-        distance_weigth((x[idx_x], y[idx_y]), p; order=order),
-        distance_weigth((x[idx_x + 1], y[idx_y]), p; order=order),
-        distance_weigth((x[idx_x], y[idx_y + 1]), p; order=order),
-        distance_weigth((x[idx_x + 1], y[idx_y + 1]), p; order=order),
+        bilinear_weight((x[idx_x], y[idx_y]), p, dxi),
+        bilinear_weight((x[idx_x + 1], y[idx_y]), p, dxi),
+        bilinear_weight((x[idx_x], y[idx_y + 1]), p, dxi),
+        bilinear_weight((x[idx_x + 1], y[idx_y + 1]), p, dxi),
     )
 
     nt = Threads.threadid()
@@ -76,44 +91,7 @@ function gathering!(
     end
 end
 
-
-# @inbounds function _gathering_xcell!(F, Fp, inode, jnode, xi, p, order)
-#     px, py = p
-#     x, y = xi
-#     ω = 0.0
-#     ω_F = 0.0
-#     max_xcell = size(px, 1)
-#     c = 0
-#     for offset_i = 0:1, offset_j = 0:1
-#         for i in 1:max_xcell
-#             c+=1
-#             icell, jcell = inode+offset_i, jnode+offset_j
-#             p_i = (px[i, icell, jcell], py[i, icell, jcell])
-#             any(isnan, p_i) && continue
-#             ω_i  = distance_weigth((x[icell], y[jcell]), p_i; order=order)
-#             ω   += ω_i
-#             ω_F += ω_i*Fp[i, icell, jcell]
-#         end
-#     end
-
-#     F[inode, jnode] = ω_F/ω
-# end
-
-# function gathering_xcell!(
-#     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords; order=2
-# ) where {T}
-
-#     nx, ny = size(F)
-#     for jnode in 1:ny-1
-#         for inode in 1:nx-1
-#             _gathering_xcell!(F, Fp, inode, jnode, xi, particle_coords, order)
-#         end
-#     end
-
-# end
-
-
-@inbounds function _gathering_xcell!(F, Fp, icell, jcell, xi, p, order)
+@inbounds function _gathering_xcell!(F, Fp, icell, jcell, xi, p, dxi, order)
     px, py = p # particle coordinates
     xc_cell = (xi[1][icell], xi[2][jcell]) # cell center coordinates
     ω, ωxF = 0.0, 0.0 # init weights
@@ -122,7 +100,7 @@ end
     for i in 1:max_xcell
         p_i = (px[i, icell, jcell], py[i, icell, jcell])
         any(isnan, p_i) && continue # ignore unused allocations
-        ω_i  = distance_weigth(xc_cell, p_i; order=order)
+        ω_i  = bilinear_weight(xc_cell, p_i, dxi)
         ω   += ω_i
         ωxF += ω_i*Fp[i, icell, jcell]
     end
@@ -133,11 +111,14 @@ end
 function gathering_xcell!(
     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords; order=2
 ) where {T}
-
+    dxi = (
+        xi[1][2]-xi[1][1],
+        xi[2][2]-xi[2][1],
+    )
     nx, ny = size(F)
-    for jcell in 1:ny-2
+    Threads.@threads for jcell in 1:ny-2
         for icell in 1:nx-2
-            _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, order)
+            _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, dxi, order)
         end
     end
 
@@ -154,14 +135,14 @@ end
     idx_x, idx_y, idx_z = parent_cell(p, dxi, xci)
 
     ω = (
-        distance_weigth((x[idx_x], y[idx_y], z[idx_z]), p; order=order),
-        distance_weigth((x[idx_x + 1], y[idx_y], z[idx_z]), p; order=order),
-        distance_weigth((x[idx_x], y[idx_y + 1], z[idx_z]), p; order=order),
-        distance_weigth((x[idx_x + 1], y[idx_y + 1], z[idx_z]), p; order=order),
-        distance_weigth((x[idx_x], y[idx_y], z[idx_z + 1]), p; order=order),
-        distance_weigth((x[idx_x + 1], y[idx_y], z[idx_z + 1]), p; order=order),
-        distance_weigth((x[idx_x], y[idx_y + 1], z[idx_z + 1]), p; order=order),
-        distance_weigth((x[idx_x + 1], y[idx_y + 1], z[idx_z + 1]), p; order=order),
+        distance_weight((x[idx_x], y[idx_y], z[idx_z]), p; order=order),
+        distance_weight((x[idx_x + 1], y[idx_y], z[idx_z]), p; order=order),
+        distance_weight((x[idx_x], y[idx_y + 1], z[idx_z]), p; order=order),
+        distance_weight((x[idx_x + 1], y[idx_y + 1], z[idx_z]), p; order=order),
+        distance_weight((x[idx_x], y[idx_y], z[idx_z + 1]), p; order=order),
+        distance_weight((x[idx_x + 1], y[idx_y], z[idx_z + 1]), p; order=order),
+        distance_weight((x[idx_x], y[idx_y + 1], z[idx_z + 1]), p; order=order),
+        distance_weight((x[idx_x + 1], y[idx_y + 1], z[idx_z + 1]), p; order=order),
     )
 
     nt = Threads.threadid()
@@ -257,10 +238,10 @@ function _gather1!(
             # the cell containing the particle
             idx_x, idx_y = parent_cell(p_idx, dxi, xci)
 
-            ω1::Float64 = distance_weigth((x[idx_x], y[idx_y]), p_idx; order=order)
-            ω2::Float64 = distance_weigth((x[idx_x + 1], y[idx_y]), p_idx; order=order)
-            ω3::Float64 = distance_weigth((x[idx_x], y[idx_y + 1]), p_idx; order=order)
-            ω4::Float64 = distance_weigth((x[idx_x + 1], y[idx_y + 1]), p_idx; order=order)
+            ω1::Float64 = distance_weight((x[idx_x], y[idx_y]), p_idx; order=order)
+            ω2::Float64 = distance_weight((x[idx_x + 1], y[idx_y]), p_idx; order=order)
+            ω3::Float64 = distance_weight((x[idx_x], y[idx_y + 1]), p_idx; order=order)
+            ω4::Float64 = distance_weight((x[idx_x + 1], y[idx_y + 1]), p_idx; order=order)
 
             Fpi::Float64 = Fpd[idx]
 
@@ -318,6 +299,89 @@ function gathering!(
     end
 end
 
+function gathering_xcell!(
+    F::CuArray{T,2}, Fp::CuArray{T,N}, xi, particle_coords; nt=512
+) where {T, N}
+
+    x, y = xi
+    dxi = (x[2] - x[1], y[2] - y[1])
+
+    # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
+    nx, ny, nz = size(Fp)
+    nblocksx = ceil(Int, ny / 32)
+    nblocksy = ceil(Int, nz / 32)
+
+    CUDA.@sync begin
+        @cuda @cuda threads = (32, 32) blocks = (nblocksx, nblocksy) _gather_xcell!(
+            upper, lower, Fpd, xci, xi, dxi, particle_coords
+        )
+    end
+
+end
+
+
+function _gather_xcell!(
+    F::CuArray{T,2},
+    Fp,
+    xi,
+    px,
+    py,
+    dxi,
+    order=2,
+) where {T}
+    icell = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    jcell = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    px_cache = @cuDynamicSharedMem(T, size(Fp, 1), threadsPerBlock_x, threadsPerBlock_y)
+    py_cache = @cuDynamicSharedMem(T, size(Fp, 1), threadsPerBlock_x, threadsPerBlock_y)
+    Fp_cache = @cuDynamicSharedMem(T, size(Fp, 1), threadsPerBlock_x, threadsPerBlock_y)
+
+    # Initialise cache indices
+    totalThreads = blockDim().x * gridDim().x * blockDim().y + threadIdx().y
+    cacheIndex_x = threadIdx().x
+    cacheIndex_y = threadIdx().y
+
+    if (icell ≤ size(F, 1)) && (jcell ≤ size(F, 2))
+
+        # unpack tuples
+        xc_cell = (xi[1][icell], xi[2][jcell]) # cell center coordinates
+        ω, ωxF = 0.0, 0.0 # init weights
+        max_xcell = size(px, 1) # max particles per cell
+
+        # cache arrays 
+        for i in 1:max_xcell
+            px_cache[i, cacheIndex_x, cacheIndex_y] = px[i, icell, jcell]
+            py_cache[i, cacheIndex_x, cacheIndex_y] = py[i, icell, jcell]
+            Fp_cache[i, cacheIndex_x, cacheIndex_y] = Fp[i, icell, jcell]
+        end
+
+        sync_threads()
+
+        for i in 1:max_xcell
+            p_i = (px_cache[i, icell, jcell], py_cache[i, icell, jcell])
+            any(isnan, p_i) && continue # ignore unused allocations
+            ω_i  = bilinear_weight(xc_cell, p_i, dxi)
+            ω   += ω_i
+            ωxF += ω_i*Fp_cache[i, icell, jcell]
+        end
+
+        # for i in 1:max_xcell
+        #     p_i = (px[i, icell, jcell], py[i, icell, jcell])
+        #     any(isnan, p_i) && continue # ignore unused allocations
+        #     ω_i  = bilinear_weight(xc_cell, p_i, dxi)
+        #     ω   += ω_i
+        #     ωxF += ω_i*Fp[i, icell, jcell]
+        # end
+        
+        F[icell+1, jcell+1] = ωxF/ω
+
+    end
+  
+    return nothing
+    
+end
+
+
 ## CUDA 3D 
 
 function _gather1!(
@@ -347,28 +411,28 @@ function _gather1!(
             # the cell containing the particle
             idx_x, idx_y, idx_z = parent_cell(p_idx, dxi, xci)
 
-            ω1::Float64 = distance_weigth(
+            ω1::Float64 = distance_weight(
                 (x[idx_x], y[idx_y], z[idx_z]), p_idx; order=order
             )
-            ω2::Float64 = distance_weigth(
+            ω2::Float64 = distance_weight(
                 (x[idx_x + 1], y[idx_y], z[idx_z]), p_idx; order=order
             )
-            ω3::Float64 = distance_weigth(
+            ω3::Float64 = distance_weight(
                 (x[idx_x], y[idx_y + 1], z[idx_z]), p_idx; order=order
             )
-            ω4::Float64 = distance_weigth(
+            ω4::Float64 = distance_weight(
                 (x[idx_x + 1], y[idx_y + 1], z[idx_z]), p_idx; order=order
             )
-            ω5::Float64 = distance_weigth(
+            ω5::Float64 = distance_weight(
                 (x[idx_x], y[idx_y], z[idx_z + 1]), p_idx; order=order
             )
-            ω6::Float64 = distance_weigth(
+            ω6::Float64 = distance_weight(
                 (x[idx_x + 1], y[idx_y], z[idx_z + 1]), p_idx; order=order
             )
-            ω7::Float64 = distance_weigth(
+            ω7::Float64 = distance_weight(
                 (x[idx_x], y[idx_y + 1], z[idx_z + 1]), p_idx; order=order
             )
-            ω8::Float64 = distance_weigth(
+            ω8::Float64 = distance_weight(
                 (x[idx_x + 1], y[idx_y + 1], z[idx_z + 1]), p_idx; order=order
             )
 
