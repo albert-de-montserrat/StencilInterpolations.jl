@@ -40,14 +40,14 @@ end
 @inline function normalize_coordinates(
     p::NTuple{N,A}, xi::NTuple{N,B}, dxi::NTuple{N,C}, idx::NTuple{N,D}
 ) where {N,A,B,C,D}
-    return ntuple(i -> (p[i] - xi[i][idx[i]]) * (1 / dxi[i]), Val(N))
+    return ntuple(i -> (p[i] - xi[i][idx[i]]) * inv(dxi[i]), Val(N))
 end
 
 # normalize coordinates
 @inline function normalize_coordinates(
     p::NTuple{N,A}, xci::NTuple{N,B}, dxi::NTuple{N,C}
 ) where {N,A,B,C}
-    return ntuple(i -> (p[i] - xci[i]) * (1 / dxi[i]), Val(N))
+    return ntuple(i -> (p[i] - xci[i]) * inv(dxi[i]), Val(N))
 end
 
 # compute grid size

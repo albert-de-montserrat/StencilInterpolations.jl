@@ -300,83 +300,61 @@ function gathering!(
 end
 
 function gathering_xcell!(
-    F::CuArray{T,2}, Fp::CuArray{T,N}, xi, particle_coords; nt=512
+    F::CuArray{T,2}, Fp::CuArray{T,N}, xi, particle_coords
 ) where {T, N}
 
+    px, py = particle_coords
     x, y = xi
     dxi = (x[2] - x[1], y[2] - y[1])
 
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
-    nx, ny, nz = size(Fp)
+    nxcell, ny, nz = size(px)
     nblocksx = ceil(Int, ny / 32)
     nblocksy = ceil(Int, nz / 32)
+    threadsx = 32
+    threadsy = 32
+
+    shmem_size = (3*sizeof(T) * nxcell*threadsx*threadsy)
 
     CUDA.@sync begin
-        @cuda @cuda threads = (32, 32) blocks = (nblocksx, nblocksy) _gather_xcell!(
-            upper, lower, Fpd, xci, xi, dxi, particle_coords
+        @cuda threads = (threadsx, threadsy) blocks = (nblocksx, nblocksy) _gather_xcell!(
+            F, Fp, xi, px, py, dxi
         )
     end
 
 end
 
-
 function _gather_xcell!(
-    F::CuArray{T,2},
+    F::CuDeviceArray{T,2},
     Fp,
     xi,
     px,
     py,
     dxi,
-    order=2,
 ) where {T}
+
     icell = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     jcell = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-    px_cache = @cuDynamicSharedMem(T, size(Fp, 1), threadsPerBlock_x, threadsPerBlock_y)
-    py_cache = @cuDynamicSharedMem(T, size(Fp, 1), threadsPerBlock_x, threadsPerBlock_y)
-    Fp_cache = @cuDynamicSharedMem(T, size(Fp, 1), threadsPerBlock_x, threadsPerBlock_y)
-
-    # Initialise cache indices
-    totalThreads = blockDim().x * gridDim().x * blockDim().y + threadIdx().y
-    cacheIndex_x = threadIdx().x
-    cacheIndex_y = threadIdx().y
-
-    if (icell ≤ size(F, 1)) && (jcell ≤ size(F, 2))
+    if (icell ≤ size(px, 2)) && (jcell ≤ size(px, 3))
 
         # unpack tuples
         xc_cell = (xi[1][icell], xi[2][jcell]) # cell center coordinates
         ω, ωxF = 0.0, 0.0 # init weights
         max_xcell = size(px, 1) # max particles per cell
 
-        # cache arrays 
         for i in 1:max_xcell
-            px_cache[i, cacheIndex_x, cacheIndex_y] = px[i, icell, jcell]
-            py_cache[i, cacheIndex_x, cacheIndex_y] = py[i, icell, jcell]
-            Fp_cache[i, cacheIndex_x, cacheIndex_y] = Fp[i, icell, jcell]
-        end
-
-        sync_threads()
-
-        for i in 1:max_xcell
-            p_i = (px_cache[i, icell, jcell], py_cache[i, icell, jcell])
+            p_i = (px[i, icell, jcell], py[i, icell, jcell])
             any(isnan, p_i) && continue # ignore unused allocations
             ω_i  = bilinear_weight(xc_cell, p_i, dxi)
             ω   += ω_i
-            ωxF += ω_i*Fp_cache[i, icell, jcell]
+            ωxF += ω_i*Fp[i, icell, jcell]
         end
-
-        # for i in 1:max_xcell
-        #     p_i = (px[i, icell, jcell], py[i, icell, jcell])
-        #     any(isnan, p_i) && continue # ignore unused allocations
-        #     ω_i  = bilinear_weight(xc_cell, p_i, dxi)
-        #     ω   += ω_i
-        #     ωxF += ω_i*Fp[i, icell, jcell]
-        # end
         
         F[icell+1, jcell+1] = ωxF/ω
 
     end
-  
+
     return nothing
     
 end

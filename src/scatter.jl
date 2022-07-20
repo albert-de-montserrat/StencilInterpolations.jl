@@ -75,9 +75,8 @@ function grid2particle_xcell!(Fp, xi, F::Array{T,N}, particle_coords) where {T,N
         (xi[i][1] - dxi[i]):dxi[i]:(xi[i][end] + dxi[i])
     end
     nx, ny = length.(xi)
-    max_xcell  = size(particle_coords[1], 1)
-    # Threads.@threads 
-    for jcell in 1:ny
+    max_xcell = size(particle_coords[1], 1)
+    Threads.@threads for jcell in 1:ny
         for icell in 1:nx
             _grid2particle_xcell!(
                 Fp, particle_coords, xi, xci_augmented, dxi, F, max_xcell, icell, jcell
@@ -110,11 +109,43 @@ function _grid2particle_xcell!(Fp, p::NTuple, xi::NTuple, xci_augmented, dxi::NT
         # Interpolate field F onto particle
         Fp[i, icell, jcell] = ndlinear(ti, Fi)
 
-        # isnan(Fp[i, icell, jcell]) && @show ti, Fi, p_i, xi, dxi, idx
     end
 end
 
 ## CUDA
+
+function grid2particle(
+    xi, Fd::CuArray{T,N}, particle_coords::NTuple{N,CuArray}; nt=512
+) where {T,N}
+    dxi = grid_size(xi)
+    n = length(particle_coords[1])
+    Fpd = CuArray{T,1}(undef, n)
+    # origin of the domain 
+    xci = minimum.(xi)
+    numblocks = ceil(Int, n / nt)
+    CUDA.@sync begin
+        @cuda threads = nt blocks = numblocks _grid2particle!(
+            Fpd, particle_coords, dxi, xci, xi, Fd, n
+        )
+    end
+
+    return Fpd
+end
+
+function grid2particle!(
+    Fpd::CuArray{T,1}, xi, Fd::CuArray{T,N}, particle_coords::NTuple{N,CuArray}; nt=512
+) where {T,N}
+    dxi = grid_size(xi)
+    n = length(particle_coords[1])
+    # origin of the domain 
+    xci = minimum.(xi)
+    numblocks = ceil(Int, n / nt)
+    CUDA.@sync begin
+        @cuda threads = nt blocks = numblocks _grid2particle!(
+            Fpd, particle_coords, dxi, xci, xi, Fd, n
+        )
+    end
+end
 
 function _grid2particle!(
     Fp::CuDeviceVector{T,1},
@@ -152,35 +183,67 @@ function _grid2particle!(
     return nothing
 end
 
-function grid2particle(
-    xi, Fd::CuArray{T,N}, particle_coords::NTuple{N,CuArray}; nt=512
+function grid2particle_xcell!(
+    Fp::CuArray, xi, F::CuArray{T,N}, particle_coords::NTuple{N,CuArray}
 ) where {T,N}
+    
     dxi = grid_size(xi)
-    n = length(particle_coords[1])
-    Fpd = CuArray{T,1}(undef, n)
-    # origin of the domain 
-    xci = minimum.(xi)
-    numblocks = ceil(Int, n / nt)
-    CUDA.@sync begin
-        @cuda threads = nt blocks = numblocks _grid2particle!(
-            Fpd, particle_coords, dxi, xci, xi, Fd, n
-        )
+    xci_augmented = ntuple(Val(N)) do i
+        (xi[i][1] - dxi[i]):dxi[i]:(xi[i][end] + dxi[i])
     end
 
-    return Fpd
+    max_xcell, ny, nz = size(particle_coords[1])
+    nblocksx = ceil(Int, ny / 32)
+    nblocksy = ceil(Int, nz / 32)
+    threadsx = 32
+    threadsy = 32
+
+    CUDA.@sync begin
+        @cuda  threads = (threadsx, threadsy) blocks = (nblocksx, nblocksy) _grid2particle_xcell!(
+            Fp, particle_coords, dxi, xi, xci_augmented, F, max_xcell
+        )
+    end
 end
 
-function grid2particle!(
-    Fpd::CuArray{T,1}, xi, Fd::CuArray{T,N}, particle_coords::NTuple{N,CuArray}; nt=512
-) where {T,N}
-    dxi = grid_size(xi)
-    n = length(particle_coords[1])
-    # origin of the domain 
-    xci = minimum.(xi)
-    numblocks = ceil(Int, n / nt)
-    CUDA.@sync begin
-        @cuda threads = nt blocks = numblocks _grid2particle!(
-            Fpd, particle_coords, dxi, xci, xi, Fd, n
-        )
+function _grid2particle_xcell!(
+    Fp::CuDeviceArray,
+    p::NTuple{N,CuDeviceArray},
+    dxi::NTuple{N,T},
+    xi::NTuple{N,A},
+    xci_augmented::NTuple{N,B},
+    F::CuDeviceArray{T,N},
+    max_xcell::Integer,
+) where {T,A,B,N}
+
+    @inline function particle2tuple(ip::Integer, idx::Vararg{T1,N1}) where {N1, T1}
+        return ntuple(i -> p[i][ip, idx...], Val(N))
     end
+
+    icell = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    jcell = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    if (icell ≤ size(p[1], 2)) && (jcell ≤ size(p[1], 3))
+
+        idx = (icell, jcell)
+        
+        for i in 1:max_xcell
+
+            p_i = particle2tuple(i, icell, jcell)
+
+            any(isnan, p_i) && continue
+
+            # F at the cell corners
+            Fi, xci = field_centers(F, p_i, xi, xci_augmented, idx)
+
+            # normalize particle coordinates
+            ti = normalize_coordinates(p_i, xci, dxi)
+    
+            # Interpolate field F onto particle
+            Fp[i, icell, jcell] = ndlinear(ti, Fi)
+
+        end
+
+    end
+
+    return nothing
 end
