@@ -23,6 +23,48 @@ end
 
 ## CPU 2D
 
+@inbounds function _gathering_xvertex!(F, Fp, inode, jnode, xi, p, dxi)
+    px, py = p # particle coordinates
+    nx, ny = length.(xi)
+    xvertex = (xi[1][inode], xi[2][jnode]) # cell lower-left coordinates
+    ω, ωxF = 0.0, 0.0 # init weights
+    max_xcell = size(px, 1) # max particles per cell
+
+    # iterate over cells around i-th node
+    for ivertex in -1:0, jvertex in -1:0
+        # make sure we stay within the grid
+        if (1 ≤ ivertex ≤ nx )&& (1 ≤ jvertex ≤ ny)
+            # iterate over cell
+            for i in 1:max_xcell
+                p_i = (px[i, inode, jnode], py[i, inode, jnode])
+                # ignore lines below for unused allocations
+                p_i[1] && continue
+                ω_i  = bilinear_weight(xvertex, p_i, dxi)
+                ω   += ω_i
+                ωxF += ω_i*Fp[i, inode, jnode]
+            end
+        end
+    end
+
+    F[inode, jnode] = ωxF/ω
+end
+
+function gathering_xvertex!(
+    F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords
+) where {T}
+    dxi = (
+        xi[1][2]-xi[1][1],
+        xi[2][2]-xi[2][1],
+    )
+    nx, ny = size(F)
+    Threads.@threads for jcell in 1:ny-1
+        for icell in 1:nx-1
+            _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, dxi, order)
+        end
+    end
+
+end
+
 @inbounds function _gathering!(upper, lower, Fpi, p, xci, x, y, dxi, order)
 
     # check that the particle is inside the grid
