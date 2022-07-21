@@ -1,5 +1,48 @@
 ## CPU
 
+function grid2particle_xvertex!(Fp, xvi, F::Array{T,N}, particle_coords) where {T,N}
+    # cell dimensions
+    dxi = grid_size(xvi)
+   
+    nx, ny = length.(xvi)
+    max_xcell = size(particle_coords[1], 1)
+    Threads.@threads for jnode in 1:ny-1
+        for inode in 1:nx-1
+            _grid2particle_xvertex!(
+                Fp, particle_coords, xvi, dxi, F, max_xcell, inode, jnode
+            )
+        end
+    end
+end
+
+
+function _grid2particle_xvertex!(Fp, p::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, inode, jnode)
+    idx = (inode, jnode)
+
+    @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N, T}
+        return ntuple(i -> p[i][ip, idx...], Val(N))
+    end
+
+    for i in 1:max_xcell
+        # check that the particle is inside the grid
+        # isinside(p, xi)
+
+        p_i = particle2tuple(i, idx)
+
+        any(isnan, p_i) && continue
+
+        # F at the cell corners
+        Fi = field_corners(F, idx)
+
+        # normalize particle coordinates
+        ti = normalize_coordinates(p_i, xvi, dxi, idx)
+
+        # Interpolate field F onto particle
+        Fp[i, inode, jnode] = ndlinear(ti, Fi)
+
+    end
+end
+
 function _grid2particle(p::NTuple, xci::Tuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
     # check that the particle is inside the grid
     # isinside(p, xi)

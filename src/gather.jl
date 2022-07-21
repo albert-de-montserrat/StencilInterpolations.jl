@@ -5,7 +5,7 @@ end
 @inline @generated function bilinear_weight(a::NTuple{N,T}, b::NTuple{N,T}, dxi::NTuple{N,T}) where {N,T}
     quote
         val = one(T)
-        Base.Cartesian.@nexprs $N i -> one(T) - abs(a[i]-b[i])/dxi[i]
+        Base.Cartesian.@nexprs $N i -> @inbounds val *= one(T) - abs(a[i]-b[i])*inv(dxi[i])
         return val
     end
 end
@@ -31,17 +31,21 @@ end
     max_xcell = size(px, 1) # max particles per cell
 
     # iterate over cells around i-th node
-    for ivertex in -1:0, jvertex in -1:0
-        # make sure we stay within the grid
-        if (1 ≤ ivertex ≤ nx )&& (1 ≤ jvertex ≤ ny)
-            # iterate over cell
-            for i in 1:max_xcell
-                p_i = (px[i, inode, jnode], py[i, inode, jnode])
-                # ignore lines below for unused allocations
-                p_i[1] && continue
-                ω_i  = bilinear_weight(xvertex, p_i, dxi)
-                ω   += ω_i
-                ωxF += ω_i*Fp[i, inode, jnode]
+    for ioffset in -1:0 
+        ivertex = ioffset + inode
+        for joffset in -1:0
+            jvertex = joffset + jnode
+            # make sure we stay within the grid
+            if (1 ≤ ivertex ≤ nx) && (1 ≤ jvertex ≤ ny)
+                # iterate over cell
+                for i in 1:max_xcell
+                    p_i = (px[i, inode, jnode], py[i, inode, jnode])
+                    # ignore lines below for unused allocations
+                    isnan(p_i[1]) && continue
+                    ω_i  = bilinear_weight(xvertex, p_i, dxi)
+                    ω   += ω_i
+                    ωxF += ω_i*Fp[i, inode, jnode]
+                end
             end
         end
     end
@@ -57,9 +61,9 @@ function gathering_xvertex!(
         xi[2][2]-xi[2][1],
     )
     nx, ny = size(F)
-    Threads.@threads for jcell in 1:ny-1
-        for icell in 1:nx-1
-            _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, dxi, order)
+    Threads.@threads for jnode in 1:ny-1
+        for inode in 1:nx-1
+            _gathering_xvertex!(F, Fp, inode, jnode, xi, particle_coords, dxi)
         end
     end
 
