@@ -1,6 +1,6 @@
 ## CPU
 
-function _grid2particle_xcell_centered(p_i::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell)
+function _grid2particle_xvertex(p_i::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell)
    
     # cell indices
     idx = (icell, jcell)
