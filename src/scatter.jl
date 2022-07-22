@@ -1,5 +1,20 @@
 ## CPU
 
+function _grid2particle_xcell_centered(p_i::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell)
+   
+    # cell indices
+    idx = (icell, jcell)
+    # F at the cell corners
+    Fi = field_corners(F, idx)
+    # normalize particle coordinates
+    ti = normalize_coordinates(p_i, xvi, dxi, idx)
+    # Interpolate field F onto particle
+    Fp = ndlinear(ti, Fi)
+
+    return Fp
+end
+
+
 function grid2particle_xvertex!(Fp, xvi, F::Array{T,N}, particle_coords) where {T,N}
     # cell dimensions
     dxi = grid_size(xvi)
