@@ -30,7 +30,7 @@ function grid2particle_xvertex!(Fp, xvi, F::Array{T,N}, particle_coords) where {
     end
 end
 
-
+    
 function _grid2particle_xvertex!(Fp, p::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, inode, jnode)
     idx = (inode, jnode)
 
