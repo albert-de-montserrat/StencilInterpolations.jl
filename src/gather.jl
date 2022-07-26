@@ -25,26 +25,26 @@ end
 
 @inbounds function _gathering_xvertex!(F, Fp, inode, jnode, xi, p, dxi)
     px, py = p # particle coordinates
-    nx, ny = length.(xi)
+    nx, ny = size(F)
     xvertex = (xi[1][inode], xi[2][jnode]) # cell lower-left coordinates
     ω, ωxF = 0.0, 0.0 # init weights
     max_xcell = size(px, 1) # max particles per cell
 
     # iterate over cells around i-th node
-    for ioffset in -1:0 
-        ivertex = ioffset + inode
-        for joffset in -1:0
-            jvertex = joffset + jnode
+    for joffset in -1:0
+        jvertex = joffset + jnode
+        for ioffset in -1:0 
+            ivertex = ioffset + inode
             # make sure we stay within the grid
-            if (1 ≤ ivertex ≤ nx) && (1 ≤ jvertex ≤ ny)
+            if (1 ≤ ivertex < nx) && (1 ≤ jvertex < ny)
                 # iterate over cell
-                for i in 1:max_xcell
-                    p_i = (px[i, inode, jnode], py[i, inode, jnode])
+                @inbounds for i in 1:max_xcell
+                    p_i = (px[i, ivertex, jvertex], py[i, ivertex, jvertex])
                     # ignore lines below for unused allocations
                     isnan(p_i[1]) && continue
                     ω_i  = bilinear_weight(xvertex, p_i, dxi)
                     ω   += ω_i
-                    ωxF += ω_i*Fp[i, inode, jnode]
+                    ωxF += ω_i*Fp[i, ivertex, jvertex]
                 end
             end
         end
@@ -61,8 +61,8 @@ function gathering_xvertex!(
         xi[2][2]-xi[2][1],
     )
     nx, ny = size(F)
-    Threads.@threads for jnode in 1:ny-1
-        for inode in 1:nx-1
+    Threads.@threads for jnode in 1:ny
+        for inode in 1:nx
             _gathering_xvertex!(F, Fp, inode, jnode, xi, particle_coords, dxi)
         end
     end
@@ -162,8 +162,8 @@ function gathering_xcell!(
         xi[2][2]-xi[2][1],
     )
     nx, ny = size(F)
-    Threads.@threads for jcell in 1:ny-1
-        for icell in 1:nx-1
+    Threads.@threads for jcell in 1:ny-2
+        for icell in 1:nx-2
             _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, dxi, order)
         end
     end
