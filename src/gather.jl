@@ -162,8 +162,8 @@ function gathering_xcell!(
         xi[2][2]-xi[2][1],
     )
     nx, ny = size(F)
-    Threads.@threads for jcell in 1:ny-2
-        for icell in 1:nx-2
+    Threads.@threads for jcell in 1:ny-1
+        for icell in 1:nx-1
             _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, dxi, order)
         end
     end
