@@ -2,19 +2,20 @@
     return inv(distance(a, b)^order)
 end
 
-@inline @generated function bilinear_weight(a::NTuple{N,T}, b::NTuple{N,T}, dxi::NTuple{N,T}) where {N,T}
+@inline @generated function bilinear_weight(
+    a::NTuple{N,T}, b::NTuple{N,T}, dxi::NTuple{N,T}
+) where {N,T}
     quote
         val = one(T)
-        Base.Cartesian.@nexprs $N i -> @inbounds val *= one(T) - abs(a[i]-b[i])*inv(dxi[i])
+        Base.Cartesian.@nexprs $N i ->
+            @inbounds val *= one(T) - abs(a[i] - b[i]) * inv(dxi[i])
         return val
     end
 end
 
 # CPU 
 
-function gathering!(
-    F::Array{T,N}, Fp::Array{T,1}, xi, particle_coords
-) where {T,N}
+function gathering!(F::Array{T,N}, Fp::Array{T,1}, xi, particle_coords) where {T,N}
     upper = [zeros(size(F)) for _ in 1:Threads.nthreads()]
     lower = [zeros(size(F)) for _ in 1:Threads.nthreads()]
 
@@ -33,7 +34,7 @@ end
     # iterate over cells around i-th node
     for joffset in -1:0
         jvertex = joffset + jnode
-        for ioffset in -1:0 
+        for ioffset in -1:0
             ivertex = ioffset + inode
             # make sure we stay within the grid
             if (1 ≤ ivertex < nx) && (1 ≤ jvertex < ny)
@@ -42,31 +43,27 @@ end
                     p_i = (px[i, ivertex, jvertex], py[i, ivertex, jvertex])
                     # ignore lines below for unused allocations
                     isnan(p_i[1]) && continue
-                    ω_i  = bilinear_weight(xvertex, p_i, dxi)
-                    ω   += ω_i
-                    ωxF += ω_i*Fp[i, ivertex, jvertex]
+                    ω_i = bilinear_weight(xvertex, p_i, dxi)
+                    ω += ω_i
+                    ωxF += ω_i * Fp[i, ivertex, jvertex]
                 end
             end
         end
     end
 
-    F[inode, jnode] = ωxF/ω
+    return F[inode, jnode] = ωxF / ω
 end
 
 function gathering_xvertex!(
     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords
 ) where {T}
-    dxi = (
-        xi[1][2]-xi[1][1],
-        xi[2][2]-xi[2][1],
-    )
+    dxi = (xi[1][2] - xi[1][1], xi[2][2] - xi[2][1])
     nx, ny = size(F)
     Threads.@threads for jnode in 1:ny
         for inode in 1:nx
             _gathering_xvertex!(F, Fp, inode, jnode, xi, particle_coords, dxi)
         end
     end
-
 end
 
 @inbounds function _gathering!(upper, lower, Fpi, p, xci, x, y, dxi, order)
@@ -108,7 +105,6 @@ end
 function gathering!(
     F::Array{T,2}, Fp::Vector{T}, xi, particle_coords, upper, lower; order=2
 ) where {T}
-
     fill!.(upper, zero(T))
     fill!.(lower, zero(T))
 
@@ -142,32 +138,28 @@ end
     xc_cell = (xi[1][icell], xi[2][jcell]) # cell center coordinates
     ω, ωxF = 0.0, 0.0 # init weights
     max_xcell = size(px, 1) # max particles per cell
-    
+
     for i in 1:max_xcell
         p_i = (px[i, icell, jcell], py[i, icell, jcell])
         any(isnan, p_i) && continue # ignore unused allocations
-        ω_i  = bilinear_weight(xc_cell, p_i, dxi)
-        ω   += ω_i
-        ωxF += ω_i*Fp[i, icell, jcell]
+        ω_i = bilinear_weight(xc_cell, p_i, dxi)
+        ω += ω_i
+        ωxF += ω_i * Fp[i, icell, jcell]
     end
 
-    F[icell+1, jcell+1] = ωxF/ω
+    return F[icell + 1, jcell + 1] = ωxF / ω
 end
 
 function gathering_xcell!(
     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords; order=2
 ) where {T}
-    dxi = (
-        xi[1][2]-xi[1][1],
-        xi[2][2]-xi[2][1],
-    )
+    dxi = (xi[1][2] - xi[1][1], xi[2][2] - xi[2][1])
     nx, ny = size(F)
-    Threads.@threads for jcell in 1:ny-2
-        for icell in 1:nx-2
+    Threads.@threads for jcell in 1:(ny - 2)
+        for icell in 1:(nx - 2)
             _gathering_xcell!(F, Fp, icell, jcell, xi, particle_coords, dxi, order)
         end
     end
-
 end
 
 ## CPU 3D
@@ -228,11 +220,13 @@ function gathering!(
 
     # origin of the domain 
     xci = minimum.(xi)
-    
+
     # compute ∑ωᵢFᵢ and ∑ωᵢ
     Threads.@threads for i in 1:np
         if !isnan(px[i]) && !isnan(py[i]) && !isnan(pz[i])
-            _gathering!(upper, lower, Fp[i], (px[i], py[i], pz[i]), xci, x, y, z, dxi, order)
+            _gathering!(
+                upper, lower, Fp[i], (px[i], py[i], pz[i]), xci, x, y, z, dxi, order
+            )
         end
     end
 
@@ -347,8 +341,7 @@ end
 
 function gathering_xcell!(
     F::CuArray{T,2}, Fp::CuArray{T,N}, xi, particle_coords
-) where {T, N}
-
+) where {T,N}
     px, py = particle_coords
     x, y = xi
     dxi = (x[2] - x[1], y[2] - y[1])
@@ -360,25 +353,16 @@ function gathering_xcell!(
     threadsx = 32
     threadsy = 32
 
-    shmem_size = (3*sizeof(T) * nxcell*threadsx*threadsy)
+    shmem_size = (3 * sizeof(T) * nxcell * threadsx * threadsy)
 
     CUDA.@sync begin
         @cuda threads = (threadsx, threadsy) blocks = (nblocksx, nblocksy) _gather_xcell!(
             F, Fp, xi, px, py, dxi
         )
     end
-
 end
 
-function _gather_xcell!(
-    F::CuDeviceArray{T,2},
-    Fp,
-    xi,
-    px,
-    py,
-    dxi,
-) where {T}
-
+function _gather_xcell!(F::CuDeviceArray{T,2}, Fp, xi, px, py, dxi) where {T}
     icell = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     jcell = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
@@ -392,19 +376,16 @@ function _gather_xcell!(
         for i in 1:max_xcell
             p_i = (px[i, icell, jcell], py[i, icell, jcell])
             any(isnan, p_i) && continue # ignore unused allocations
-            ω_i  = bilinear_weight(xc_cell, p_i, dxi)
-            ω   += ω_i
-            ωxF += ω_i*Fp[i, icell, jcell]
+            ω_i = bilinear_weight(xc_cell, p_i, dxi)
+            ω += ω_i
+            ωxF += ω_i * Fp[i, icell, jcell]
         end
-        
-        F[icell+1, jcell+1] = ωxF/ω
 
+        F[icell + 1, jcell + 1] = ωxF / ω
     end
 
     return nothing
-    
 end
-
 
 ## CUDA 3D 
 
@@ -508,7 +489,7 @@ function gathering!(
     dxi = (x[2] - x[1], y[2] - y[1], z[2] - z[1])
     # origin of the domain 
     xci = minimum.(xi)
-    
+
     # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
     N = length(Fpd)
     numblocks = ceil(Int, N / nt)

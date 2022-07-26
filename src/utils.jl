@@ -1,4 +1,6 @@
-@inline function parent_cell(p::NTuple{N,A}, dxi::NTuple{N,B}, xci::NTuple{N,B}) where {N,A,B}
+@inline function parent_cell(
+    p::NTuple{N,A}, dxi::NTuple{N,B}, xci::NTuple{N,B}
+) where {N,A,B}
     return ntuple(i -> Int((p[i] - xci[i]) ÷ dxi[i] + 1), Val(N))
 end
 
@@ -78,17 +80,19 @@ end
 end
 
 @inline function center_coordinate(x_i, offset_i, idx_i, dx_i)
-    if idx_i == 1 
-        return @inbounds x_i[1] - dx_i*0.5 
+    if idx_i == 1
+        return @inbounds x_i[1] - dx_i * 0.5
     elseif offset_i == 0
         return @inbounds x_i[idx_i]
     else
-        return @inbounds x_i[idx_i-1]
+        return @inbounds x_i[idx_i - 1]
     end
 end
 
 # Get field F at the centers of a given cell
-@inline function field_centers(F::AbstractArray{T,2}, pxi, xi, xci_augmented, idx::NTuple{2,Integer}) where {T}
+@inline function field_centers(
+    F::AbstractArray{T,2}, pxi, xi, xci_augmented, idx::NTuple{2,Integer}
+) where {T}
     # unpack
     idx_x, idx_y = idx
     px, py = pxi
@@ -112,7 +116,9 @@ end
     return Fi, (xc, yc)
 end
 
-@inline function field_centers(F::AbstractArray{T,3}, pxi, xi, dxi, idx::NTuple{3,Integer}) where {T}
+@inline function field_centers(
+    F::AbstractArray{T,3}, pxi, xi, dxi, idx::NTuple{3,Integer}
+) where {T}
     # unpack
     idx_x, idx_y, idx_z = idx
     px, py, pz = pxi
@@ -123,8 +129,8 @@ end
     offset_y = (py - y) > 0 ? 1 : 0
     offset_z = (pz - z) > 0 ? 1 : 0
     # cell indices
-    idx_x += offset_x  
-    idx_y += offset_y  
+    idx_x += offset_x
+    idx_y += offset_y
     idx_z += offset_z
     # coordinates of lower-left corner of the cell
     xc = center_coordinate(xi[1], offset_x, idx_x, dx)
@@ -143,7 +149,6 @@ end
     )
 
     return Fi, (xc, yc, zc)
-
 end
 
 # lower-left center coordinate
@@ -152,7 +157,7 @@ end
     px, py = pxi
     x, y = xi[1][idx_x], xi[2][idx_x]
     idx_x = (px - x) > 0 ? idx_x + 1 : idx_x
-    idx_y = (py - y) > 0 ? idx_y + 1 : idx_y 
+    idx_y = (py - y) > 0 ? idx_y + 1 : idx_y
 
     return (
         F[idx_x, idx_y], F[idx_x + 1, idx_y], F[idx_x, idx_y + 1], F[idx_x + 1, idx_y + 1]
