@@ -77,7 +77,7 @@ function grid2particle_xvertex!(Fp::CuArray, xvi, F::CuArray{T,2}, particle_coor
 end
 
 function _grid2particle_xvertex!(
-    Fp::CuArray, p::NTuple, xvi::NTuple, dxi::NTuple{2, T}, F::CuArray, max_xcell
+    Fp::CuDeviceArray, p::NTuple, xvi::NTuple, dxi::NTuple{2, T}, F::CuDeviceArray, max_xcell
 ) where T
 
     @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N,T}
