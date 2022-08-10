@@ -65,7 +65,75 @@ function gathering_xvertex!(
         end
     end
 end
+## CUDA 2D
 
+function gathering_xvertex!(
+    F::CuArray, Fp::CuArray, xi::NTuple{2,T}, particle_coords
+) where {T}
+    # dxi = (xi[1][2] - xi[1][1], xi[2][2] - xi[2][1])
+    # nx, ny = size(F)
+    # Threads.@threads for jnode in 1:ny
+    #     for inode in 1:nx
+    #         _foo(F, Fp, inode, jnode, xi, particle_coords, dxi)
+    #     end
+    # end
+
+    px, = particle_coords
+    dxi =  grid_size(xi)
+
+    # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
+    _, ny, nz = size(px)
+    nblocksx = ceil(Int, ny / 32)
+    nblocksy = ceil(Int, nz / 32)
+    threadsx = 32
+    threadsy = 32
+
+    CUDA.@sync begin
+        @cuda threads = (threadsx, threadsy) blocks = (nblocksx, nblocksy) _gathering_xvertex!!(
+            F, Fp, xi, particle_coords, dxi
+        )
+    end
+end
+
+function _gathering_xvertex!!(F, Fp, xi, p, dxi)
+
+    inode = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    jnode = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    @inbounds if (inode ≤ length(xi[1])) && (jnode ≤ length(xi[2]))
+
+        px, py = p # particle coordinates
+        nx, ny = size(F)
+        xvertex = (xi[1][inode], xi[2][jnode]) # cell lower-left coordinates
+        ω, ωxF = 0.0, 0.0 # init weights
+        max_xcell = size(px, 1) # max particles per cell
+
+        # iterate over cells around i-th node
+        for joffset in -1:0
+            jvertex = joffset + jnode
+            for ioffset in -1:0
+                ivertex = ioffset + inode
+                # make sure we stay within the grid
+                if (1 ≤ ivertex < nx) && (1 ≤ jvertex < ny)
+                    # iterate over cell
+                    @inbounds for i in 1:max_xcell
+                        p_i = (px[i, ivertex, jvertex], py[i, ivertex, jvertex])
+                        # ignore lines below for unused allocations
+                        isnan(p_i[1]) && continue
+                        ω_i = bilinear_weight(xvertex, p_i, dxi)
+                        ω += ω_i
+                        ωxF += ω_i * Fp[i, ivertex, jvertex]
+                    end
+                end
+            end
+        end
+
+        F[inode, jnode] = ωxF / ω
+    end
+    return nothing
+end
+
+##
 @inbounds function _gathering!(upper, lower, Fpi, p, xci, x, y, dxi, order)
 
     # check that the particle is inside the grid
