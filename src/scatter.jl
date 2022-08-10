@@ -1,22 +1,5 @@
 ## CPU
-
-function _grid2particle_xvertex(
-    p_i::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell
-)
-
-    # cell indices
-    idx = (icell, jcell)
-    # F at the cell corners
-    Fi = field_corners(F, idx)
-    # normalize particle coordinates
-    ti = normalize_coordinates(p_i, xvi, dxi, idx)
-    # Interpolate field F onto particle
-    Fp = ndlinear(ti, Fi)
-
-    return Fp
-end
-
-function grid2particle_xvertex!(Fp, xvi, F::Array{T,N}, particle_coords) where {T,N}
+function grid2particle_xvertex!(Fp::Array, xvi, F::Array{T,N}, particle_coords) where {T,N}
     # cell dimensions
     dxi = grid_size(xvi)
 
@@ -59,6 +42,78 @@ function _grid2particle_xvertex!(
     end
 end
 
+function _grid2particle_xvertex(
+    p_i::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, icell, jcell
+)
+
+    # cell indices
+    idx = (icell, jcell)
+    # F at the cell corners
+    Fi = field_corners(F, idx)
+    # normalize particle coordinates
+    ti = normalize_coordinates(p_i, xvi, dxi, idx)
+    # Interpolate field F onto particle
+    Fp = ndlinear(ti, Fi)
+
+    return Fp
+end
+
+## CUDA
+function grid2particle_xvertex!(Fp::CuArray, xvi, F::CuArray{T,2}, particle_coords; nt=512) where T
+    # cell dimensions
+    dxi = grid_size(xvi)
+    max_xcell, ny, nz = size(particle_coords[1])
+    nblocksx = ceil(Int, ny / 32)
+    nblocksy = ceil(Int, nz / 32)
+    threadsx = 32
+    threadsy = 32
+
+    CUDA.@sync begin
+        @cuda threads = (threadsx, threadsy) blocks = (nblocksx, nblocksy) _grid2particle_xvertex!(
+            Fp, particle_coords, xvi, dxi, F, max_xcell
+        )
+    end
+
+end
+
+function _grid2particle_xvertex!(
+    Fp::CuArray, p::NTuple, xvi::NTuple, dxi::NTuple{2, T}, F::CuArray, max_xcell
+) where T
+
+    @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N,T}
+        return ntuple(i -> p[i][ip, idx...], Val(N))
+    end
+
+    inode = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    jnode = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    if (inode ≤ size(p[1], 2)) && (jnode ≤ size(p[1], 3))
+        idx = (inode, jnode)
+
+        for i in 1:max_xcell
+            # check that the particle is inside the grid
+            # isinside(p, xi)
+
+            p_i = particle2tuple(i, idx)
+
+            any(isnan, p_i) && continue
+
+            # F at the cell corners
+            Fi = field_corners(F, idx)
+
+            # normalize particle coordinates
+            ti = normalize_coordinates(p_i, xvi, dxi, idx)
+
+            # Interpolate field F onto particle
+            Fp[i, inode, jnode] = ndlinear(ti, Fi)
+        end
+
+    end
+
+    return nothing
+end
+
+## CPU
 function _grid2particle(p::NTuple, xci::Tuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
     # check that the particle is inside the grid
     # isinside(p, xi)
@@ -281,7 +336,7 @@ function _grid2particle_xcell!(
     F::CuDeviceArray{T,N},
     max_xcell::Integer,
 ) where {T,A,B,N}
-    @inline function particle2tuple(ip::Integer, idx::Vararg{T1,N1}) where {N1,T1}
+    @inline function particle2tuple(ip::Integer, idx::Vararg{T,N}) where {N,T}
         return ntuple(i -> p[i][ip, idx...], Val(N))
     end
 
