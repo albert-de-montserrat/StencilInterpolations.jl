@@ -24,7 +24,7 @@ end
 
 ## CPU 2D
 
-@inbounds function _gathering_xvertex!(F, Fp, inode, jnode, xi, p, dxi)
+@inbounds function _gathering_xvertex!(F, Fp, inode, jnode, xi::NTuple{2, T}, p, dxi) where T
     px, py = p # particle coordinates
     nx, ny = size(F)
     xvertex = (xi[1][inode], xi[2][jnode]) # cell lower-left coordinates
@@ -55,29 +55,72 @@ end
 end
 
 function gathering_xvertex!(
-    F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords
+    F::AbstractArray, Fp::AbstractArray, xi::NTuple{2, T}, particle_coords
 ) where {T}
-    dxi = (xi[1][2] - xi[1][1], xi[2][2] - xi[2][1])
-    nx, ny = size(F)
-    Threads.@threads for jnode in 1:ny
-        for inode in 1:nx
+    dxi = grid_size(xi)
+    Threads.@threads for jnode in axes(F,2)
+        for inode in axes(F,1)
             _gathering_xvertex!(F, Fp, inode, jnode, xi, particle_coords, dxi)
         end
     end
 end
+
+## CPU 3D
+
+@inbounds function _gathering_xvertex!(F, Fp, inode, jnode, knode, xi::NTuple{3, T}, p, dxi) where T
+    px, py, pz = p # particle coordinates
+    nx, ny, nz = size(F)
+    xvertex = (xi[1][inode], xi[2][jnode],  xi[3][knode]) # cell lower-left coordinates
+    ω, ωxF = 0.0, 0.0 # init weights
+    max_xcell = size(px, 1) # max particles per cell
+
+    # iterate over cells around i-th node
+    for koffset in -1:0
+        kvertex = koffset + knode
+        for joffset in -1:0
+            jvertex = joffset + jnode
+            for ioffset in -1:0
+                ivertex = ioffset + inode
+                # make sure we stay within the grid
+                if (1 ≤ ivertex < nx) && (1 ≤ jvertex < ny) && (1 ≤ kvertex < nz)
+                    # iterate over cell
+                    @inbounds for i in 1:max_xcell
+                        p_i = (
+                            px[i, ivertex, jvertex, kvertex],
+                            py[i, ivertex, jvertex, kvertex], 
+                            pz[i, ivertex, jvertex, kvertex]
+                        )
+                        # ignore lines below for unused allocations
+                        isnan(p_i[1]) && continue
+                        ω_i = bilinear_weight(xvertex, p_i, dxi)
+                        ω += ω_i
+                        ωxF += ω_i * Fp[i, ivertex, jvertex, kvertex]
+                    end
+                end
+            end
+        end
+    end
+
+    return F[inode, jnode, knode] = ωxF / ω
+end
+
+function gathering_xvertex!(
+    F::AbstractArray, Fp::AbstractArray, xi::NTuple{3, T}, particle_coords
+) where {T}
+    dxi = grid_size(xi)
+    Threads.@threads for knode in axes(F,3)
+        for jnode in axes(F,2), inode in axes(F,1)
+            _gathering_xvertex!(F, Fp, inode, jnode, knode, xi, particle_coords, dxi)
+        end
+    end
+end
+
 ## CUDA 2D
 
 function gathering_xvertex!(
     F::CuArray, Fp::CuArray, xi::NTuple{2,T}, particle_coords
 ) where {T}
-    # dxi = (xi[1][2] - xi[1][1], xi[2][2] - xi[2][1])
-    # nx, ny = size(F)
-    # Threads.@threads for jnode in 1:ny
-    #     for inode in 1:nx
-    #         _foo(F, Fp, inode, jnode, xi, particle_coords, dxi)
-    #     end
-    # end
-
+ 
     px, = particle_coords
     dxi =  grid_size(xi)
 
@@ -95,7 +138,7 @@ function gathering_xvertex!(
     end
 end
 
-function _gathering_xvertex!!(F, Fp, xi, p, dxi)
+function _gathering_xvertex!!(F, Fp, xi, p, dxi::NTuple{2,T}) where T
 
     inode = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     jnode = (blockIdx().y - 1) * blockDim().y + threadIdx().y
@@ -129,6 +172,78 @@ function _gathering_xvertex!!(F, Fp, xi, p, dxi)
         end
 
         F[inode, jnode] = ωxF / ω
+    end
+    return nothing
+end
+
+## CUDA 3D
+
+function gathering_xvertex!(
+    F::CuArray, Fp::CuArray, xi::NTuple{3,T}, particle_coords
+) where {T}
+
+    px, = particle_coords
+    dxi =  grid_size(xi)
+
+    # first kernel that computes ∑ωᵢFᵢ and ∑ωᵢ
+    _, nx, ny, nz = size(px)
+    nblocksx = ceil(Int, nx / 16)
+    nblocksy = ceil(Int, ny / 16)
+    nblocksz = ceil(Int, nz / 4)
+    threadsx = 16
+    threadsy = 16
+    threadsz = 4
+
+    CUDA.@sync begin
+        @cuda threads = (threadsx, threadsy, threadsz) blocks = (nblocksx, nblocksy, nblocksz) _gathering_xvertex!!(
+            F, Fp, xi, particle_coords, dxi
+        )
+    end
+end
+
+function _gathering_xvertex!!(F, Fp, xi, p, dxi::NTuple{3,T}) where T
+
+    inode = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    jnode = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    knode = (blockIdx().z - 1) * blockDim().z + threadIdx().z
+    lx, ly, lz = length.(xi)
+
+    @inbounds if (inode ≤ lx) && (jnode ≤ ly) && (knode ≤ lz)
+
+        px, py, pz = p # particle coordinates
+        nx, ny, nz = size(F)
+        xvertex = (xi[1][inode], xi[2][jnode], xi[3][knode]) # cell lower-left coordinates
+        ω, ωxF = 0.0, 0.0 # init weights
+        max_xcell = size(px, 1) # max particles per cell
+
+        # iterate over cells around i-th node
+        for koffset in -1:0
+            kvertex = koffset + knode
+            for joffset in -1:0
+                jvertex = joffset + jnode
+                for ioffset in -1:0
+                    ivertex = ioffset + inode
+                    # make sure we stay within the grid
+                    if (1 ≤ ivertex < nx) && (1 ≤ jvertex < ny) && (1 ≤ kvertex < nz)
+                        # iterate over cell
+                        @inbounds for i in 1:max_xcell
+                            p_i = (
+                                px[i, ivertex, jvertex, kvertex],
+                                py[i, ivertex, jvertex, kvertex], 
+                                pz[i, ivertex, jvertex, kvertex]
+                            )
+                            # ignore lines below for unused allocations
+                            isnan(p_i[1]) && continue
+                            ω_i = bilinear_weight(xvertex, p_i, dxi)
+                            ω += ω_i
+                            ωxF += ω_i * Fp[i, ivertex, jvertex, kvertex]
+                        end
+                    end
+                end
+            end
+        end
+
+        F[inode, jnode, knode] = ωxF / ω
     end
     return nothing
 end
