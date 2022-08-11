@@ -8,37 +8,9 @@ function grid2particle_xvertex!(Fp::Array, xvi, F::Array{T,2}, particle_coords) 
     Threads.@threads for jnode in 1:(ny - 1)
         for inode in 1:(nx - 1)
             _grid2particle_xvertex!(
-                Fp, particle_coords, xvi, dxi, F, max_xcell, inode, jnode
+                Fp, particle_coords, xvi, dxi, F, max_xcell, (inode, jnode)
             )
         end
-    end
-end
-
-function _grid2particle_xvertex!(
-    Fp::Array, p::NTuple{2,T}, xvi::NTuple, dxi::NTuple, F::Array, max_xcell, inode, jnode
-) where T
-    idx = (inode, jnode)
-
-    @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N,T}
-        return ntuple(i -> p[i][ip, idx...], Val(N))
-    end
-
-    for i in 1:max_xcell
-        # check that the particle is inside the grid
-        # isinside(p, xi)
-
-        p_i = particle2tuple(i, idx)
-
-        any(isnan, p_i) && continue
-
-        # F at the cell corners
-        Fi = field_corners(F, idx)
-
-        # normalize particle coordinates
-        ti = normalize_coordinates(p_i, xvi, dxi, idx)
-
-        # Interpolate field F onto particle
-        Fp[i, inode, jnode] = ndlinear(ti, Fi)
     end
 end
 
@@ -67,16 +39,15 @@ function grid2particle_xvertex!(Fp::Array, xvi, F::Array{T,3}, particle_coords) 
     Threads.@threads for knode in 1:(nz - 1)
         for jnode in 1:(ny - 1), inode in 1:(nx - 1)
             _grid2particle_xvertex!(
-                Fp, particle_coords, xvi, dxi, F, max_xcell, inode, jnode, knode
+                Fp, particle_coords, xvi, dxi, F, max_xcell, (inode, jnode, knode)
             )
         end
     end
 end
 
 function _grid2particle_xvertex!(
-    Fp::Array, p::NTuple{2,T}, xvi::NTuple, dxi::NTuple, F::Array, max_xcell, inode, jnode, knode
+    Fp::Array, p::NTuple{N,T}, xvi::NTuple, dxi::NTuple, F::Array, max_xcell, idx 
 ) where T
-    idx = (inode, jnode, knode)
 
     @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N,T}
         return ntuple(i -> p[i][ip, idx...], Val(N))
@@ -97,7 +68,7 @@ function _grid2particle_xvertex!(
         ti = normalize_coordinates(p_i, xvi, dxi, idx)
 
         # Interpolate field F onto particle
-        Fp[i, inode, jnode] = ndlinear(ti, Fi)
+        Fp[i, idx...] = ndlinear(ti, Fi)
     end
 end
 
