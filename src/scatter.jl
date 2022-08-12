@@ -46,8 +46,8 @@ function grid2particle_xvertex!(Fp::Array, xvi, F::Array{T,3}, particle_coords) 
 end
 
 function _grid2particle_xvertex!(
-    Fp::Array, p::NTuple{N,T}, xvi::NTuple, dxi::NTuple, F::Array, max_xcell, idx 
-) where T
+    Fp::Array, p::NTuple, xvi::NTuple, dxi::NTuple, F::Array, max_xcell, idx 
+)
 
     @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N,T}
         return ntuple(i -> p[i][ip, idx...], Val(N))
