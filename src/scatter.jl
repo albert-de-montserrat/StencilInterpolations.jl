@@ -129,8 +129,6 @@ end
 
 ## CPU
 function _grid2particle(p::NTuple, xci::Tuple, xi::NTuple, dxi::NTuple, F::AbstractArray)
-    # check that the particle is inside the grid
-    # isinside(p, xi)
 
     # indices of lowermost-left corner of the cell 
     # containing the particle
@@ -165,7 +163,7 @@ function _grid2particle_xcell_centered(
 end
 
 function grid2particle(xi, F::Array{T,N}, particle_coords) where {T,N}
-    Fp = zeros(T, np)
+    Fp = zeros(T, size(particle_coords[1])...)
 
     # cell dimensions
     dxi = grid_size(xi)
